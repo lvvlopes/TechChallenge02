@@ -32,6 +32,18 @@ BLUE = (0, 0, 255)
 # minhas constantes
 TOURNAMENT_SIZE = 5
 
+
+def build_city_abbreviations(cities):
+    abbreviations = []
+    for city_name, *_ in cities:
+        words = [word for word in city_name.replace('-', ' ').split() if word.lower() not in {'da', 'de', 'do', 'das', 'dos'}]
+        if len(words) >= 2:
+            abbreviation = ''.join(word[0] for word in words[:3]).upper()
+        else:
+            abbreviation = city_name[:3].upper()
+        abbreviations.append(abbreviation)
+    return abbreviations
+
 def tournament_selection(population, fitness, k=TOURNAMENT_SIZE):
     # escolhe k indivíduos aleatórios
     selected_indices = random.sample(range(len(population)), k)
@@ -61,6 +73,7 @@ cities_locations = project_cities_to_screen(
     x_offset=PLOT_X_OFFSET,
     node_radius=NODE_RADIUS,
 )
+city_abbreviations = build_city_abbreviations(greater_sp_cities)
 # ----- Using Greater São Paulo (RMSP)
 
 
@@ -121,7 +134,7 @@ while running:
     draw_plot(screen, list(range(len(best_fitness_values))),
               best_fitness_values, y_label="Fitness - Distance (pxls)")
 
-    draw_cities(screen, cities_locations, RED, NODE_RADIUS)
+    draw_cities(screen, cities_locations, RED, NODE_RADIUS, labels=city_abbreviations)
     draw_paths(screen, best_solution, BLUE, width=3)
     draw_paths(screen, population[1], rgb_color=(128, 128, 128), width=1)
 
