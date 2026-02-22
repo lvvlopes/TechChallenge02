@@ -42,7 +42,7 @@ To run the TSP solver, execute the `tsp.py` script using Python. The solver allo
 
 - Randomly generated cities
 - Default predefined problems with 10, 12, or 15 cities
-- `att48` benchmark dataset (uncomment relevant code in `tsp.py`)
+- Região Metropolitana de São Paulo (todas as cidades da Grande São Paulo)
 
 You can customize parameters such as population size, number of generations, and mutation probability directly in the `tsp.py` script.
 

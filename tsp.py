@@ -7,7 +7,7 @@ from draw_functions import draw_paths, draw_plot, draw_cities
 import sys
 import numpy as np
 import pygame
-from benchmark_att48 import *
+from benchmark_greater_sp import greater_sp_cities, project_cities_to_screen
 
 
 # Define constant values
@@ -52,19 +52,16 @@ def tournament_selection(population, fitness, k=TOURNAMENT_SIZE):
 # cities_locations = default_problems[15]
 
 
-# Using att48 benchmark
+# Using Greater São Paulo (RMSP) municipalities
 WIDTH, HEIGHT = 1500, 800
-att_cities_locations = np.array(att_48_cities_locations)
-max_x = max(point[0] for point in att_cities_locations)
-max_y = max(point[1] for point in att_cities_locations)
-scale_x = (WIDTH - PLOT_X_OFFSET - NODE_RADIUS) / max_x
-scale_y = HEIGHT / max_y
-cities_locations = [(int(point[0] * scale_x + PLOT_X_OFFSET),
-                     int(point[1] * scale_y)) for point in att_cities_locations]
-target_solution = [cities_locations[i-1] for i in att_48_cities_order]
-fitness_target_solution = calculate_fitness(target_solution)
-print(f"Best Solution: {fitness_target_solution}")
-# ----- Using att48 benchmark
+cities_locations = project_cities_to_screen(
+    greater_sp_cities,
+    width=WIDTH,
+    height=HEIGHT,
+    x_offset=PLOT_X_OFFSET,
+    node_radius=NODE_RADIUS,
+)
+# ----- Using Greater São Paulo (RMSP)
 
 
 # Initialize Pygame
@@ -95,6 +92,7 @@ best_solutions = []
 
 # Main game loop
 best_fitness_old = None
+sem_mudanca = 0
 running = True
 while running:
     for event in pygame.event.get():
