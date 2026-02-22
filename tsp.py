@@ -150,12 +150,12 @@ while running:
         # parent1, parent2 = random.choices(population[:10], k=2)
 
         # solution based on fitness probability
-        probability = 1 / np.array(population_fitness)
-        parent1, parent2 = random.choices(population, weights=probability, k=2)
+        #probability = 1 / np.array(population_fitness)
+        #parent1, parent2 = random.choices(population, weights=probability, k=2)
 
-
-        #parent1 = tournament_selection(population, population_fitness)
-        #parent2 = tournament_selection(population, population_fitness)
+        # tournament selection
+        parent1 = tournament_selection(population, population_fitness)
+        parent2 = tournament_selection(population, population_fitness)
 
 
 
