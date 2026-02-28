@@ -36,23 +36,32 @@ def draw_plot(screen: pygame.Surface, x: list, y: list,
     screen.blit(surf, (0, 0))
     plt.close(fig)
 
-
 def draw_cities(screen: pygame.Surface,
                 cities_locations: List[Tuple[int, int]],
                 rgb_color: Tuple[int, int, int],
                 node_radius: int,
-                labels: List[str] = None,
-                label_color: pygame.Color = (0, 0, 0)) -> None:
+                labels_map: dict = None,
+                label_color: pygame.Color = (0, 0, 0),
+                start_city=None) -> None:
 
     pygame.font.init()
     font = pygame.font.SysFont('Arial', 12)
 
-    for idx, city_location in enumerate(cities_locations):
-        pygame.draw.circle(screen, rgb_color, city_location, node_radius)
-        if labels and idx < len(labels):
-            text_surface = font.render(labels[idx], True, label_color)
+    for city_location in cities_locations:
+
+        x, y = city_location
+
+        # destaque da cidade inicial (verde)
+        if start_city and city_location == start_city:
+            pygame.draw.circle(screen, (0, 255, 0), city_location, node_radius + 3)
+        else:
+            pygame.draw.circle(screen, rgb_color, city_location, node_radius)
+
+        # label baseado na rota
+        if labels_map and city_location in labels_map:
+            text_surface = font.render(labels_map[city_location], True, label_color)
             text_rect = text_surface.get_rect()
-            text_rect.midbottom = (city_location[0], city_location[1] - node_radius - 2)
+            text_rect.midbottom = (x, y - node_radius - 2)
             screen.blit(text_surface, text_rect)
 
 

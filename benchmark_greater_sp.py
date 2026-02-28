@@ -65,3 +65,9 @@ def project_cities_to_screen(cities, width, height, x_offset, node_radius):
         projected.append((x, y))
 
     return projected
+
+# fixa cidade inicial para o TSP
+def fix_start(route, start_city):
+    idx = route.index(start_city)
+    return route[idx:] + route[:idx]
+

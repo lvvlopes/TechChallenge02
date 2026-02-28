@@ -250,8 +250,48 @@ def convex_hull_tour(cities):
 def generate_convex_hull_population(cities, size):
     return [convex_hull_tour(cities[:]) for _ in range(size)]
 
+# TODO: implementar uma funcao de fitness que leve em conta a demanda de cada cidade, a prioridade de atendimento, a capacidade do veiculo e a autonomia do veiculo.
+def calculate_fitness(route, city_demand, city_priority, start_city,
+                      vehicle_capacity=100, max_distance=3000):
 
+    total_distance = 0
+    total_load = 0
+    penalty_priority = 0
 
+    for i in range(len(route)):
+        current = route[i]
+        next_city = route[(i + 1) % len(route)]
+
+        # distância
+        total_distance += ((current[0] - next_city[0])**2 +
+                           (current[1] - next_city[1])**2) ** 0.5
+
+        # carga
+        total_load += city_demand[current]
+
+        # prioridade (penaliza atraso)
+        penalty_priority += i * city_priority[current] * 3
+
+    # capacidade
+    penalty_capacity = 0
+    if total_load > vehicle_capacity:
+        penalty_capacity = (total_load - vehicle_capacity) * 100
+
+    # autonomia
+    penalty_distance = 0
+    if total_distance > max_distance:
+        penalty_distance = (total_distance - max_distance) * 30
+
+    # debug temporário para entender os componentes da função de fitness
+    print(f"Dist: {total_distance:.2f} | Pri: {penalty_priority:.2f} | Cap: {penalty_capacity:.2f} | Auto: {penalty_distance:.2f}")
+    
+    # penaliza se a cidade inicial não for a cidade de partida definida
+    penalty_start = 0
+    if route[0] != start_city:
+       penalty_start = 10000
+    
+    return total_distance + penalty_priority + penalty_capacity + penalty_distance + penalty_start
+    #return total_distance + penalty_priority + penalty_capacity + penalty_distance
 
 
 

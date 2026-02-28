@@ -7,7 +7,7 @@ from draw_functions import draw_paths, draw_plot, draw_cities
 import sys
 import numpy as np
 import pygame
-from benchmark_greater_sp import greater_sp_cities, project_cities_to_screen
+from benchmark_greater_sp import fix_start, greater_sp_cities, project_cities_to_screen
 
 
 # Define constant values
@@ -22,6 +22,7 @@ N_CITIES = 15
 POPULATION_SIZE = 100
 N_GENERATIONS = None
 MUTATION_PROBABILITY = 0.5
+CIDADE_INICIAL = "Guarulhos"  # Cidade inicial para o TSP (pode ser alterada conforme necessário)
 
 # Define colors
 WHITE = (255, 255, 255)
@@ -65,7 +66,33 @@ cities_locations = project_cities_to_screen(
     x_offset=PLOT_X_OFFSET,
     node_radius=NODE_RADIUS,
 )
+
+# mapa nome -> coordenada
+city_map = {
+    name: coord
+    for (name, _, _), coord in zip(greater_sp_cities, cities_locations)
+}
+
+# mapa coordenada -> nome
+coord_to_name = {coord: name for name, coord in city_map.items()}
+
+#start_city = cities_locations[0]
+start_city = city_map[CIDADE_INICIAL]
+
+# Gerar demandas e prioridades aleatórias para cada cidade 
+city_demand = {
+    city: random.randint(1, 20)
+    for city in cities_locations
+}
+
+city_priority = {
+    city: random.randint(1, 3)
+    for city in cities_locations
+}
+
 city_labels = build_city_labels(greater_sp_cities)
+
+
 # ----- Using Greater São Paulo (RMSP)
 
 
@@ -78,18 +105,18 @@ generation_counter = itertools.count(start=1)  # Start the counter at 1
 
 
 # Create Initial Population
-# TODO:- use some heuristic like Nearest Neighbour our Convex Hull to initialize
-#population = generate_random_population(cities_locations, POPULATION_SIZE)
 
 #n_random = POPULATION_SIZE #// 3
-#n_nn = POPULATION_SIZE #// 3
+n_nn = POPULATION_SIZE #// 3
 n_ch = POPULATION_SIZE #- n_random - n_nn
 
 population = []
-#population.extend(generate_random_population(cities_locations, n_random)) #12832.1
-#population.extend(generate_nearest_neighbour_population(cities_locations, n_nn)) #5355.24
-population.extend(generate_convex_hull_population(cities_locations, n_ch)) #4995.2
+#population.extend(generate_random_population(cities_locations, n_random)) #250794.16 #12832.1
+#population.extend(generate_nearest_neighbour_population(cities_locations, n_nn)) #86328.23 #5355.24
+population.extend(generate_convex_hull_population(cities_locations, n_ch)) # 79671.14 #4995.2
 
+# fixa cidade inicial para o TSP
+population = [fix_start(ind, start_city) for ind in population]
 
 best_fitness_values = []
 best_solutions = []
@@ -111,14 +138,31 @@ while running:
 
     screen.fill(WHITE)
 
-    population_fitness = [calculate_fitness(
-        individual) for individual in population]
+    # Calculate fitness for the population
+    population_fitness = [
+        calculate_fitness(individual, city_demand, city_priority, start_city)
+        for individual in population
+    ]
+
 
     population, population_fitness = sort_population(
         population,  population_fitness)
 
-    best_fitness = calculate_fitness(population[0])
+    # Get the best solution and its fitness
+    # The calculate_fitness function defined in genetic_algorithm.py requires
+    # city_demand, city_priority and start_city arguments (plus optional
+    # capacity/autonomy). The previous call omitted start_city, causing a
+    # TypeError at runtime.
+    best_fitness = calculate_fitness(
+        population[0], city_demand, city_priority, start_city)
+    
     best_solution = population[0]
+    
+    # criar labels para as cidades do melhor caminho
+    labels_map = {
+        city: f"{i+1} - {coord_to_name[city]}"
+        for i, city in enumerate(best_solution)
+}
 
     best_fitness_values.append(best_fitness)
     best_solutions.append(best_solution)
@@ -126,7 +170,14 @@ while running:
     draw_plot(screen, list(range(len(best_fitness_values))),
               best_fitness_values, y_label="Fitness - Distance (pxls)")
 
-    draw_cities(screen, cities_locations, RED, NODE_RADIUS, labels=city_labels)
+    draw_cities(screen,
+        cities_locations,
+        RED,
+        NODE_RADIUS,
+        labels_map=labels_map,
+        start_city=start_city
+    )
+    
     draw_paths(screen, best_solution, BLUE, width=3)
     draw_paths(screen, population[1], rgb_color=(128, 128, 128), width=1)
 
@@ -161,11 +212,12 @@ while running:
         parent2 = tournament_selection(population, population_fitness)
 
 
-
         # child1 = order_crossover(parent1, parent2)
-        child1 = order_crossover(parent1, parent1)
+        child1 = order_crossover(parent1, parent2)
 
         child1 = mutate(child1, MUTATION_PROBABILITY)
+
+        child1 = fix_start(child1, start_city)
 
         new_population.append(child1)
 
@@ -175,9 +227,6 @@ while running:
     clock.tick(FPS)
 
 
-# TODO: save the best individual in a file if it is better than the one saved.
 
-
-# exit software
 pygame.quit()
 sys.exit()
