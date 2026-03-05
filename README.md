@@ -1,70 +1,262 @@
-# TSP Solver using Genetic Algorithm
+# VRP — Distribuição de Medicamentos e Insumos (RMSP)
 
-This repository contains a Python implementation of a Traveling Salesman Problem (TSP) solver using a Genetic Algorithm (GA). The TSP is a classic problem in the field of combinatorial optimization, where the goal is to find the shortest possible route that visits a set of given cities exactly once and returns to the original city.
+Sistema de otimização de rotas para distribuição de medicamentos e insumos hospitalares
+na Região Metropolitana de São Paulo, desenvolvido como Tech Challenge Fase 2 — FIAP Pós-Tech.
 
-![alt text](image.png)
-![alt text](image-1.png)
-## Prerequisites
-
-- Download and Install conda environment manager.
-  -  https://www.anaconda.com/download
-- Open the `Anaconda Prompt`
-- create the `fiap_tsp` environment
-  - `conda env create --file environment.yml`
-- activate the environment
-  - `conda activate fiap_tsp`  
-
-## How to Run
-
-Execute the following command in your terminal to run the program:
-
-### Pygame
-```bash
-python tps.py
-```
-> Press the 'q' key to quit the program.
-
-
-
-## Overview
-
-The TSP solver employs a Genetic Algorithm to iteratively evolve a population of candidate solutions towards an optimal or near-optimal solution. The GA operates by mimicking the process of natural selection, where individuals with higher fitness (i.e., shorter route distance) are more likely to survive and produce offspring.
-
-## Files
-
-- **genetic_algorithm.py**: Contains the implementation of the Genetic Algorithm, including functions for generating random populations, calculating fitness, performing crossover and mutation operations, and sorting populations based on fitness.
-- **tsp.py**: Implements the main TSP solver using Pygame for visualization. It initializes the problem, creates the initial population, and iteratively evolves the population while visualizing the best solution found so far.
-- **draw_functions.py**: Provides functions for drawing cities, paths, and plots using Pygame.
-
-## Usage
-
-To run the TSP solver, execute the `tsp.py` script using Python. The solver allows you to choose between different problem instances:
-
-- Randomly generated cities
-- Default predefined problems with 10, 12, or 15 cities
-- Região Metropolitana de São Paulo (todas as cidades da Grande São Paulo)
-
-You can customize parameters such as population size, number of generations, and mutation probability directly in the `tsp.py` script.
-
-## Dependencies
-
-- Python 3.x
-- Pygame (for visualization)
-
-Ensure Pygame is installed before running the solver. You can install Pygame using pip:
-
-```bash
-pip install pygame
-```
-
-## Acknowledgments
-
-This TSP solver was developed as a learning project and draws inspiration from various online resources and academic materials on Genetic Algorithms and the Traveling Salesman Problem. Special thanks to the authors of those resources for sharing their knowledge.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+O sistema resolve o **Problema de Roteamento de Veículos (VRP)** usando um **Algoritmo Genético**,
+com visualização em tempo real das rotas sobre o mapa geográfico real da Grande SP.
 
 ---
 
-Feel free to contribute to this repository by providing enhancements, bug fixes, or additional features. If you encounter any issues or have suggestions for improvements, please open an issue on the repository. Happy solving!
+## Sumário
+
+- [Contexto e Requisitos](#contexto-e-requisitos)
+- [Arquitetura do Projeto](#arquitetura-do-projeto)
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação](#instalação)
+- [Como Executar](#como-executar)
+- [Funcionamento do Algoritmo Genético](#funcionamento-do-algoritmo-genético)
+- [Restrições Implementadas](#restrições-implementadas)
+- [Visualização](#visualização)
+- [Configurações Ajustáveis](#configurações-ajustáveis)
+
+---
+
+## Contexto e Requisitos
+
+**Projeto escolhido:** Projeto 2 — Otimização de Rotas para Distribuição de Medicamentos e Insumos.
+
+| Requisito do PDF | Onde está implementado |
+|---|---|
+| Representação genética adequada para rotas | `core/algorithm.py`, `vrp/decoder.py` |
+| Operador de seleção (torneio) | `tsp.py` → `tournament_selection()` |
+| Operador de crossover (OX) | `genetic_algorithm.py` → `order_crossover()` |
+| Operador de mutação (adaptativa) | `genetic_algorithm.py` → `mutate()` |
+| Função fitness: distância + prioridade + restrições | `core/fitness.py` → `calculo_fitness()` |
+| Prioridades de entrega (crítico vs. normal) | `domain/models.py` → `DeliveryPoint.priority` |
+| Capacidade limitada dos veículos | `domain/models.py` → `Vehicle.capacity` |
+| Autonomia limitada dos veículos | `domain/models.py` → `Vehicle.max_distance` |
+| Múltiplos veículos (VRP) | `vrp/decoder.py` → `VRPDecoder.decode()` |
+| Visualização das rotas em mapa | `draw_functions.py`, `map_background.py` |
+| Refinamento local (2-opt) | `core/fitness.py` → `two_opt()` |
+| Dataset real (39 cidades RMSP) | `benchmark_greater_sp.py` |
+
+---
+
+## Arquitetura do Projeto
+
+```
+genetic_algorithm_tsp/
+│
+├── tsp.py                    # Entry point — loop principal do AG e visualização
+├── genetic_algorithm.py      # Operadores genéticos: crossover OX, mutação, ordenação
+├── draw_functions.py         # Visualização: gráficos fitness/KM e rotas no mapa
+├── benchmark_greater_sp.py   # Dataset: 39 municípios da RMSP com lat/lon
+├── map_background.py         # Download e cache de tiles OpenStreetMap
+├── environment.yml           # Ambiente Conda com todas as dependências
+│
+├── core/
+│   ├── algorithm.py          # Geração de população inicial (aleatória, NN, convex)
+│   └── fitness.py            # Função fitness multiobjetivo + refinamento 2-opt
+│
+├── domain/
+│   ├── models.py             # Entidades: DeliveryPoint, Vehicle, Route
+│   └── problem.py            # VRPProblem — agrega depot, pontos e frota
+│
+└── vrp/
+    └── decoder.py            # Decodifica cromossomo → rotas respeitando restrições
+```
+
+### Fluxo de dados
+
+```
+benchmark_greater_sp.py
+        │  39 cidades (lat/lon)
+        ▼
+    tsp.py  ──────────────────────────────────────────────────┐
+        │  Cria VRPProblem                                     │
+        │  (depot + delivery_points + vehicles)                │
+        ▼                                                      │
+core/algorithm.py                                             │
+        │  Gera população inicial híbrida                      │
+        │  (30% aleatório + 30% NN + 40% convex)              │
+        ▼                                                      │
+    [loop AG]                                                  │
+        │                                                      │
+        ├─► core/fitness.py ──► vrp/decoder.py                │
+        │       calculo_fitness()   decode() → List[Route]     │
+        │                                                      │
+        ├─► genetic_algorithm.py                               │
+        │       sort_population()                              │
+        │       tournament_selection()                         │
+        │       order_crossover()                              │
+        │       mutate()                                       │
+        │                                                      │
+        └─► draw_functions.py + map_background.py ────────────┘
+                Renderiza mapa + rotas + gráficos em tempo real
+```
+
+---
+
+## Pré-requisitos
+
+- Python **3.9** ou superior
+- [Anaconda](https://www.anaconda.com/download) ou [Miniconda](https://docs.conda.io/en/latest/miniconda.html) (recomendado)
+
+---
+
+## Instalação
+
+### Opção 1 — Conda (recomendado)
+
+```bash
+# 1. Clone ou extraia o projeto
+cd genetic_algorithm_tsp
+
+# 2. Crie o ambiente com todas as dependências
+conda env create --file environment.yml
+
+# 3. Ative o ambiente
+conda activate fiap_tsp
+```
+
+### Opção 2 — pip + venv
+
+```bash
+cd genetic_algorithm_tsp
+
+# 1. Crie e ative o ambiente virtual
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+# Linux/macOS
+source .venv/bin/activate
+
+# 2. Instale as dependências
+pip install pygame matplotlib numpy requests pillow
+```
+
+### Dependências principais
+
+| Pacote | Versão mínima | Uso |
+|---|---|---|
+| `pygame` | 2.0 | Janela de visualização e renderização |
+| `matplotlib` | 3.5 | Gráficos de fitness e distância KM |
+| `numpy` | 1.21 | Operações numéricas auxiliares |
+| `requests` | 2.27 | Download de tiles OSM |
+| `Pillow` | 9.0 | Processamento de imagens dos tiles |
+
+---
+
+## Como Executar
+
+```bash
+# Certifique-se de estar dentro da pasta do projeto com o ambiente ativo
+cd genetic_algorithm_tsp
+python tsp.py
+```
+
+**Na primeira execução**, o sistema baixa automaticamente os tiles do mapa
+OpenStreetMap para a pasta `.map_cache/`. Isso pode levar alguns segundos
+dependendo da conexão. As execuções seguintes são instantâneas.
+
+**Controles durante a execução:**
+- `Q` ou fechar a janela → encerra o algoritmo
+- O sistema encerra automaticamente após **1000 gerações sem melhoria**
+
+---
+
+## Funcionamento do Algoritmo Genético
+
+### Representação
+Cada **cromossomo** é uma lista de IDs de pontos de entrega — uma permutação
+que representa a ordem de visita. O `VRPDecoder` converte essa permutação em
+rotas reais respeitando as restrições de capacidade e autonomia.
+
+### Inicialização da população (híbrida)
+| Estratégia | Proporção | Objetivo |
+|---|---|---|
+| Aleatória | 30% | Diversidade genética |
+| Nearest Neighbour | 30% | Qualidade local |
+| Convex-like (angular) | 40% | Estrutura geográfica |
+
+### Operadores genéticos
+| Operador | Implementação | Descrição |
+|---|---|---|
+| Seleção | Torneio (k=5) | Escolhe o melhor entre 5 candidatos aleatórios |
+| Crossover | Order Crossover (OX) | Preserva ordem relativa, evita duplicatas |
+| Mutação | Adjacent Swap (adaptativa) | Taxa 0.20→0.05 ao longo das gerações |
+| Elitismo | Top-3 | Os 3 melhores são preservados a cada geração |
+| Refinamento | 2-opt | Aplicado ao melhor indivíduo + 5% dos filhos |
+
+### Critério de parada
+O algoritmo encerra quando o fitness não melhora por **1000 gerações consecutivas**
+(estagnação), indicando convergência.
+
+---
+
+## Restrições Implementadas
+
+| Restrição | Como funciona |
+|---|---|
+| **Capacidade** | Quando `carga_atual + demand > vehicle.capacity`, fecha a rota atual e abre nova com o próximo veículo |
+| **Autonomia** | Quando `distância_atual + próximo + retorno_depot > max_distance`, fecha a rota |
+| **Múltiplos veículos** | O decoder avança sequencialmente pela frota ao fechar cada rota |
+| **Prioridade** | A função fitness penaliza entregas de prioridade alta visitadas no final da rota |
+| **Balanceamento** | A função fitness penaliza alta variância de carga entre as rotas |
+
+### Configuração dos veículos
+
+| Veículo | Capacidade | Autonomia | Perfil |
+|---|---|---|---|
+| V1 | 150 unid. | 5000 px | Leve — atendimento local |
+| V2 | 150 unid. | 5000 px | Leve — atendimento local |
+| V3 | 500 unid. | 8000 px | Pesado — distribuição regional |
+
+---
+
+## Visualização
+
+A janela é dividida em duas áreas:
+
+**Lado esquerdo — Painéis de monitoramento:**
+- Gráfico superior: evolução do **fitness normalizado** por geração
+- Gráfico inferior: evolução da **distância total em KM reais** (Haversine)
+  com o valor atual anotado e legenda de cores por veículo
+
+**Lado direito — Mapa da RMSP:**
+- Fundo: tiles reais do OpenStreetMap
+- Rotas coloridas por veículo (vermelho=V1, azul=V2, verde=V3)
+- Labels em cada parada: `Nº°VX NomeCidade` na cor do veículo
+- Depósito marcado em verde
+
+---
+
+## Configurações Ajustáveis
+
+Todas as configurações principais estão no topo de `tsp.py`:
+
+```python
+# Algoritmo Genético
+POPULATION_SIZE = 100    # tamanho da população
+TOURNAMENT_SIZE = 5      # candidatos por torneio
+ELITE_SIZE      = 3      # indivíduos preservados por elitismo
+STAGNATION_STOP = 1000   # gerações sem melhoria para encerrar
+MUTATION_START  = 0.20   # taxa de mutação inicial
+MUTATION_MIN    = 0.05   # taxa de mutação mínima
+
+# Veículos (em tsp.py, seção "Construção do problema VRP")
+Vehicle(id=1, capacity=150, max_distance=5000)
+Vehicle(id=2, capacity=150, max_distance=5000)
+Vehicle(id=3, capacity=500, max_distance=8000)
+```
+
+Os pesos da função fitness podem ser ajustados em `core/fitness.py`:
+
+```python
+w_distance = 0.55   # peso da distância total
+w_priority = 0.15   # peso da penalidade de prioridade
+w_balance  = 0.05   # peso do balanceamento de carga
+w_routes   = 0.25   # peso da penalidade de fragmentação
+```

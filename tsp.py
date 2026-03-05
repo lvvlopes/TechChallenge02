@@ -1,236 +1,311 @@
+"""
+tsp.py
+------
+Entry point do sistema de otimização de rotas para distribuição de
+medicamentos e insumos na Região Metropolitana de São Paulo (RMSP).
+
+Este módulo implementa o loop principal do Algoritmo Genético para o
+Problema de Roteamento de Veículos (VRP), integrando:
+  - Geração e evolução da população de soluções
+  - Decodificação do cromossomo em rotas reais
+  - Visualização em tempo real via Pygame com mapa OSM de fundo
+
+Requisitos atendidos (PDF – Projeto 2):
+  - Sistema de otimização de rotas via AG (TSP/VRP)
+  - Restrições realistas: capacidade, autonomia, múltiplos veículos,
+    prioridades de entrega
+  - Operadores genéticos: seleção por torneio, crossover OX, mutação
+    adaptativa, elitismo (top-3), refinamento 2-opt
+  - Visualização das rotas otimizadas em mapa geográfico real (OSM)
+  - Distância exibida em KM reais via fórmula de Haversine
+
+Para executar:
+    python tsp.py
+
+Controles:
+    Q / fechar janela → encerra a execução
+"""
+
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import pygame
 from pygame.locals import *
 import random
 import itertools
-from genetic_algorithm import generate_convex_hull_population, generate_nearest_neighbour_population, mutate, order_crossover, generate_random_population, calculate_fitness, sort_population, default_problems
-from draw_functions import draw_paths, draw_plot, draw_cities
-import sys
-import numpy as np
-import pygame
-from benchmark_greater_sp import fix_start, greater_sp_cities, project_cities_to_screen
+import math
+
+from core.algorithm import generate_random_population1, generate_nearest_neighbour, generate_convex_like
+from core.fitness import calculo_fitness, two_opt
+from genetic_algorithm import mutate, order_crossover, sort_population
+from draw_functions import draw_plot, draw_routes, ROUTE_COLORS_RGB
+from benchmark_greater_sp import greater_sp_cities, project_cities_to_screen
+from domain.models import DeliveryPoint, Vehicle
+from domain.problem import VRPProblem
+from vrp.decoder import VRPDecoder
+from map_background import build_background
 
 
-# Define constant values
-# pygame
-WIDTH, HEIGHT = 800, 400
-NODE_RADIUS = 10
-FPS = 30
-PLOT_X_OFFSET = 450
+# ── Configurações Pygame ──────────────────────────────────────────────────────
+WIDTH, HEIGHT = 1500, 800   # dimensões da janela
+NODE_RADIUS   = 10           # raio dos círculos dos pontos no mapa
+FPS           = 30           # frames por segundo
+PLOT_X_OFFSET = 450          # largura reservada para os gráficos (lado esquerdo)
 
-# GA
-N_CITIES = 15
-POPULATION_SIZE = 100
-N_GENERATIONS = None
-MUTATION_PROBABILITY = 0.5
-CIDADE_INICIAL = "Guarulhos"  # Cidade inicial para o TSP (pode ser alterada conforme necessário)
-
-# Define colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-
-# minhas constantes
-TOURNAMENT_SIZE = 5
+# ── Configurações do Algoritmo Genético ───────────────────────────────────────
+POPULATION_SIZE = 100   # tamanho da população
+TOURNAMENT_SIZE = 5     # candidatos por seleção por torneio
+ELITE_SIZE      = 3     # indivíduos preservados por elitismo a cada geração
+STAGNATION_STOP = 1000  # gerações sem melhoria para encerrar (critério de parada)
+MUTATION_START  = 0.20  # taxa de mutação inicial (decresce adaptativamente)
+MUTATION_MIN    = 0.05  # taxa de mutação mínima
 
 
-def build_city_labels(cities):
-    return [city_name for city_name, *_ in cities]
+# ── Funções auxiliares ────────────────────────────────────────────────────────
 
-def tournament_selection(population, fitness, k=TOURNAMENT_SIZE):
-    # escolhe k indivíduos aleatórios
-    selected_indices = random.sample(range(len(population)), k)
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calcula a distância real em quilômetros entre dois pontos
+    geográficos usando a fórmula de Haversine.
 
-    # pega o melhor entre eles (menor fitness)
-    best_index = min(selected_indices, key=lambda i: fitness[i])
-    return population[best_index]
-
-
-# Initialize problem
-# Using Random cities generation
-# cities_locations = [(random.randint(NODE_RADIUS + PLOT_X_OFFSET, WIDTH - NODE_RADIUS), random.randint(NODE_RADIUS, HEIGHT - NODE_RADIUS))
-#                     for _ in range(N_CITIES)]
-
-
-# # # Using Deault Problems: 10, 12 or 15
-# WIDTH, HEIGHT = 800, 400
-# cities_locations = default_problems[15]
+    Usado para converter distâncias de pixels para KM reais no gráfico.
+    """
+    R    = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a    = (math.sin(dlat / 2) ** 2
+            + math.cos(math.radians(lat1))
+            * math.cos(math.radians(lat2))
+            * math.sin(dlon / 2) ** 2)
+    return R * 2 * math.asin(math.sqrt(a))
 
 
-# Using Greater São Paulo (RMSP) municipalities
-WIDTH, HEIGHT = 1500, 800
+def calc_route_km(routes, depot_name: str, city_geo: dict) -> float:
+    """
+    Soma a distância total de todas as rotas da solução em KM reais,
+    usando as coordenadas geográficas reais (lat/lon) de cada cidade.
+
+    Parâmetros:
+        routes     : lista de Route gerada pelo VRPDecoder
+        depot_name : nome da cidade depósito
+        city_geo   : dicionário {nome: (lat, lon)}
+    """
+    total_km   = 0.0
+    dlat, dlon = city_geo[depot_name]
+    for route in routes:
+        prev_lat, prev_lon = dlat, dlon
+        for stop in route.stops:
+            slat, slon = city_geo[stop.name]
+            total_km  += haversine_km(prev_lat, prev_lon, slat, slon)
+            prev_lat, prev_lon = slat, slon
+        total_km += haversine_km(prev_lat, prev_lon, dlat, dlon)
+    return total_km
+
+
+def tournament_selection(population, fitness, k: int = TOURNAMENT_SIZE):
+    """
+    Seleção por torneio: escolhe k indivíduos aleatórios e retorna
+    o de menor fitness.
+
+    Requisito atendido: operador de seleção especializado para VRP.
+    """
+    indices = random.sample(range(len(population)), k)
+    best    = min(indices, key=lambda i: fitness[i])
+    return population[best]
+
+
+# ── Construção do problema VRP ────────────────────────────────────────────────
+
+# Projeta as coordenadas lat/lon das 39 cidades da RMSP para pixels de tela
 cities_locations = project_cities_to_screen(
-    greater_sp_cities,
-    width=WIDTH,
-    height=HEIGHT,
-    x_offset=PLOT_X_OFFSET,
-    node_radius=NODE_RADIUS,
+    greater_sp_cities, width=WIDTH, height=HEIGHT,
+    x_offset=PLOT_X_OFFSET, node_radius=NODE_RADIUS,
 )
 
-# mapa nome -> coordenada
-city_map = {
-    name: coord
-    for (name, _, _), coord in zip(greater_sp_cities, cities_locations)
-}
+depot_name = "Barueri"   # cidade que serve como depósito central
 
-# mapa coordenada -> nome
-coord_to_name = {coord: name for name, coord in city_map.items()}
+# Mapas auxiliares para lookup rápido
+city_map = {name: coord for (name, _, _), coord in zip(greater_sp_cities, cities_locations)}
+city_geo = {name: (lat, lon) for name, lat, lon in greater_sp_cities}
 
-#start_city = cities_locations[0]
-start_city = city_map[CIDADE_INICIAL]
+# Cria o nó depósito (demand=0, priority=0 pois não é ponto de entrega)
+depot_x, depot_y = city_map[depot_name]
+depot = DeliveryPoint(id=0, name=depot_name, x=depot_x, y=depot_y, demand=0, priority=0)
 
-# Gerar demandas e prioridades aleatórias para cada cidade 
-city_demand = {
-    city: random.randint(1, 20)
-    for city in cities_locations
-}
+# Cria os pontos de entrega com demandas e prioridades simuladas
+# Em produção esses valores viriam de um sistema hospitalar real
+delivery_points = []
+for idx, ((name, _, _), (x, y)) in enumerate(zip(greater_sp_cities, cities_locations), start=1):
+    if name == depot_name:
+        continue
+    delivery_points.append(DeliveryPoint(
+        id=idx, name=name, x=x, y=y,
+        demand=random.randint(5, 20),    # unidades de medicamento/insumo
+        priority=random.randint(1, 3),   # 1=normal, 2=alta, 3=crítica
+    ))
 
-city_priority = {
-    city: random.randint(1, 3)
-    for city in cities_locations
-}
+# Define a frota de veículos com restrições realistas
+# Requisito: capacidade limitada, autonomia limitada, múltiplos veículos
+vehicles = [
+    Vehicle(id=1, capacity=150, max_distance=5000),  # veículo leve
+    Vehicle(id=2, capacity=150, max_distance=5000),  # veículo leve
+    Vehicle(id=3, capacity=500, max_distance=8000),  # veículo pesado / regional
+]
 
-city_labels = build_city_labels(greater_sp_cities)
+problem = VRPProblem(depot=depot, delivery_points=delivery_points, vehicles=vehicles)
 
 
-# ----- Using Greater São Paulo (RMSP)
-
-
-# Initialize Pygame
+# ── Inicialização do Pygame ───────────────────────────────────────────────────
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("TSP Solver using Pygame")
-clock = pygame.time.Clock()
-generation_counter = itertools.count(start=1)  # Start the counter at 1
+pygame.display.set_caption("VRP — Distribuição de Medicamentos RMSP")
+clock             = pygame.time.Clock()
+generation_counter = itertools.count(start=1)
+
+# Carrega mapa de fundo OpenStreetMap
+# Na 1ª execução: baixa ~20 tiles e salva em .map_cache/
+# Execuções seguintes: carrega do cache (instantâneo)
+print("[map] Carregando mapa de fundo...")
+try:
+    map_surface = build_background(
+        greater_sp_cities, screen_width=WIDTH, screen_height=HEIGHT,
+        x_offset=PLOT_X_OFFSET, node_radius=NODE_RADIUS, zoom=10,
+    )
+    print("[map] Mapa carregado.")
+except Exception as e:
+    print(f"[map] Sem mapa de fundo: {e}")
+    map_surface = None
 
 
-# Create Initial Population
+# ── População inicial híbrida ─────────────────────────────────────────────────
+# Requisito: diferentes estratégias de inicialização para balancear
+# diversidade (aleatório) e qualidade inicial (heurísticas)
+n_random = int(POPULATION_SIZE * 0.3)             # 30% aleatório
+n_nn     = int(POPULATION_SIZE * 0.3)             # 30% nearest neighbour
+n_ch     = POPULATION_SIZE - n_random - n_nn      # 40% convex-like
 
-n_random = int(POPULATION_SIZE * 0.3) #// 3
-n_nn = int(POPULATION_SIZE * 0.3) #// 3
-n_ch = POPULATION_SIZE - n_random - n_nn
-
-# 30/30/40 pra balancear qualidade + diversidade
-population = []
-# diversidade alta
-population.extend(generate_random_population(cities_locations, n_random)) #250794.16 #12832.1
-# boas soluções locais
-population.extend(generate_nearest_neighbour_population(cities_locations, n_nn)) #86328.23 #5355.24
-# melhores soluções iniciais
-population.extend(generate_convex_hull_population(cities_locations, n_ch)) # 79671.14 #4995.2
-
-# fixa cidade inicial para o TSP
-population = [fix_start(ind, start_city) for ind in population]
-
-best_fitness_values = []
-best_solutions = []
+population = (
+    generate_random_population1(problem, n_random)
+    + generate_nearest_neighbour(problem, n_nn)
+    + generate_convex_like(problem, n_ch)
+)
 
 
-# Main game loop
-best_fitness_old = None
-sem_mudanca = 0
+# ── Loop principal do Algoritmo Genético ──────────────────────────────────────
+best_fitness_values = []   # histórico de fitness para o gráfico
+best_km_values      = []   # histórico de KM reais para o gráfico
+best_fitness_old    = None
+sem_mudanca         = 0
+WHITE               = (255, 255, 255)
+
 running = True
 while running:
+
+    # Eventos Pygame
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_q:
-                running = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_q:
+            running = False
 
     generation = next(generation_counter)
 
-    screen.fill(WHITE)
+    # Fundo: mapa OSM ou branco se offline
+    screen.blit(map_surface, (0, 0)) if map_surface else screen.fill(WHITE)
 
-    # Calculate fitness for the population
-    population_fitness = [
-        calculate_fitness(individual, city_demand, city_priority, start_city)
-        for individual in population
-    ]
+    # ── Avaliação do fitness ──────────────────────────────────────────────────
+    # Calcula fitness para toda a população e ordena (menor = melhor)
+    population_fitness = [calculo_fitness(ind, problem) for ind in population]
+    population, population_fitness = sort_population(population, population_fitness)
 
+    # Refinamento local 2-opt no melhor indivíduo da geração
+    population[0] = two_opt(population[0], problem)
 
-    population, population_fitness = sort_population(
-        population,  population_fitness)
-
-    # Get the best solution and its fitness
-    # The calculate_fitness function defined in genetic_algorithm.py requires
-    # city_demand, city_priority and start_city arguments (plus optional
-    # capacity/autonomy). The previous call omitted start_city, causing a
-    # TypeError at runtime.
-    best_fitness = calculate_fitness(
-        population[0], city_demand, city_priority, start_city)
-    
     best_solution = population[0]
-    
-    # criar labels para as cidades do melhor caminho
-    labels_map = {
-        city: f"{i+1} - {coord_to_name[city]}"
-        for i, city in enumerate(best_solution)
-}
+    best_fitness  = calculo_fitness(best_solution, problem)
 
+    # Decodifica o melhor cromossomo em rotas reais para visualização
+    decoder = VRPDecoder(problem)
+    routes  = decoder.decode(best_solution)
+
+    # Registra histórico para os gráficos
     best_fitness_values.append(best_fitness)
-    best_solutions.append(best_solution)
+    best_km_values.append(calc_route_km(routes, depot_name, city_geo))
 
-    draw_plot(screen, list(range(len(best_fitness_values))),
-              best_fitness_values, y_label="Fitness - Distance (pxls)")
-
-    draw_cities(screen,
-        cities_locations,
-        RED,
-        NODE_RADIUS,
-        labels_map=labels_map,
-        start_city=start_city
+    # ── Visualização ──────────────────────────────────────────────────────────
+    # Painel esquerdo: gráfico de fitness + gráfico de KM com legenda de veículos
+    draw_plot(
+        screen,
+        list(range(len(best_fitness_values))),
+        best_fitness_values,
+        y_km=best_km_values,
+        routes=routes,
+        y_label="Fitness (norm.)",
     )
-    
-    draw_paths(screen, best_solution, BLUE, width=3)
-    draw_paths(screen, population[1], rgb_color=(128, 128, 128), width=1)
 
-    print(f"Generation {generation}: Best fitness = {round(best_fitness, 2)}")
+    # Rotas coloridas no mapa (cada veículo tem sua cor)
+    draw_routes(screen, routes, problem.depot)
 
-    fitness_atual = round(best_fitness, 2)
+    # Labels das paradas: "Nº°VX NomeCidade" na cor do veículo
+    font              = pygame.font.SysFont("Arial", 14)
+    vehicle_color_map = {}
+    cidx              = 0
+    for route in routes:
+        if route.vehicle_id not in vehicle_color_map:
+            vehicle_color_map[route.vehicle_id] = cidx
+            cidx += 1
 
-    if best_fitness_old == fitness_atual:
-        sem_mudanca += 1
-    else:
-        sem_mudanca = 0
+    for route in routes:
+        text_color = ROUTE_COLORS_RGB[vehicle_color_map[route.vehicle_id] % len(ROUTE_COLORS_RGB)]
+        for i, stop in enumerate(route.stops):
+            pygame.draw.circle(screen, (0, 0, 0), (stop.x, stop.y), 6)
+            label = font.render(f"{i+1}°V{route.vehicle_id} {stop.name}", True, text_color)
+            screen.blit(label, (stop.x + 5, stop.y - 5))
 
+    # Depósito destacado em verde
+    pygame.draw.circle(screen, (0, 200, 0), (problem.depot.x, problem.depot.y), 10)
+    screen.blit(
+        font.render(problem.depot.name, True, (0, 130, 0)),
+        (problem.depot.x + 5, problem.depot.y - 5),
+    )
+
+    print(f"Gen {generation:4d} | Fitness: {best_fitness:.4f} | KM: {best_km_values[-1]:.1f}")
+
+    # ── Critério de parada por estagnação ─────────────────────────────────────
+    fitness_atual = round(best_fitness, 4)
+    sem_mudanca   = sem_mudanca + 1 if best_fitness_old == fitness_atual else 0
     best_fitness_old = fitness_atual
-    if sem_mudanca >= 1000:
+    if sem_mudanca >= STAGNATION_STOP:
+        print("Algoritmo convergiu — encerrando.")
         running = False
 
+    # ── Nova geração ──────────────────────────────────────────────────────────
+    # Elitismo: preserva os ELITE_SIZE melhores indivíduos
+    new_population = list(population[:ELITE_SIZE])
 
-    new_population = [population[0]]  # Keep the best individual: ELITISM
+    # Taxa de mutação adaptativa: alta no início (exploração), baixa no final (refinamento)
+    mutation_prob = max(MUTATION_MIN, MUTATION_START * (1 - generation / 1500))
 
     while len(new_population) < POPULATION_SIZE:
-
-        # selection
-        # simple selection based on first 10 best solutions
-        # parent1, parent2 = random.choices(population[:10], k=2)
-
-        # solution based on fitness probability
-        #probability = 1 / np.array(population_fitness)
-        #parent1, parent2 = random.choices(population, weights=probability, k=2)
-
-        # tournament selection
+        # Seleção por torneio para os dois pais
         parent1 = tournament_selection(population, population_fitness)
         parent2 = tournament_selection(population, population_fitness)
 
+        # Crossover OX + mutação adaptativa
+        child = order_crossover(parent1, parent2)
+        child = mutate(child, mutation_prob)
 
-        # child1 = order_crossover(parent1, parent2)
-        child1 = order_crossover(parent1, parent2)
+        # 5% de chance de aplicar 2-opt ao filho (refinamento estocástico)
+        if random.random() < 0.05:
+            child = two_opt(child, problem)
 
-        child1 = mutate(child1, MUTATION_PROBABILITY)
-
-        child1 = fix_start(child1, start_city)
-
-        new_population.append(child1)
+        new_population.append(child)
 
     population = new_population
 
     pygame.display.flip()
     clock.tick(FPS)
-
-
 
 pygame.quit()
 sys.exit()
