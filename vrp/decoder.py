@@ -43,9 +43,29 @@ class VRPDecoder:
         """Distância euclidiana em pixels entre dois pontos."""
         return math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2)
 
+    def _sort_by_priority(self, chromosome: List[int]) -> List[int]:
+        """
+        Reordena o cromossomo garantindo que cidades de maior prioridade
+        apareçam antes — dentro de cada grupo de prioridade, a ordem
+        relativa original (otimizada pelo AG) é preservada.
+
+        Grupos (ordem de visita):
+          1º) Prioridade 3 — crítica
+          2º) Prioridade 2 — alta
+          3º) Prioridade 1 — normal
+        """
+        critical = [g for g in chromosome if self.problem.get_point(g).priority == 3]
+        high     = [g for g in chromosome if self.problem.get_point(g).priority == 2]
+        normal   = [g for g in chromosome if self.problem.get_point(g).priority == 1]
+        return critical + high + normal
+
     def decode(self, chromosome: List[int]) -> List[Route]:
         """
         Decodifica o cromossomo em uma lista de rotas.
+
+        Antes de decodificar, reordena o cromossomo por prioridade
+        (_sort_by_priority) para garantir que cidades críticas sejam
+        sempre visitadas primeiro, independente do que o AG sugere.
 
         Parâmetros:
             chromosome : lista de IDs de pontos de entrega (permutação)
@@ -53,6 +73,7 @@ class VRPDecoder:
         Retorno:
             lista de Route, uma por segmento de viagem realizado
         """
+        chromosome = self._sort_by_priority(chromosome)
         routes   = []
         vehicles = self.problem.vehicles
 

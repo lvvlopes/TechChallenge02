@@ -55,11 +55,11 @@ PLOT_X_OFFSET = 450          # largura reservada para os gráficos (lado esquerd
 
 # ── Configurações do Algoritmo Genético ───────────────────────────────────────
 POPULATION_SIZE = 100   # tamanho da população
-TOURNAMENT_SIZE = 5     # candidatos por seleção por torneio
-ELITE_SIZE      = 3     # indivíduos preservados por elitismo a cada geração
-STAGNATION_STOP = 1000  # gerações sem melhoria para encerrar (critério de parada)
-MUTATION_START  = 0.20  # taxa de mutação inicial (decresce adaptativamente)
-MUTATION_MIN    = 0.05  # taxa de mutação mínima
+TOURNAMENT_SIZE = 3     # torneio menor = menos pressão seletiva, mais diversidade
+ELITE_SIZE      = 5     # elitismo baixo: preserva bons mas não estagna
+STAGNATION_STOP = 400   # gerações sem melhoria no MELHOR para encerrar
+MUTATION_START  = 0.30  # mutação inicial alta para explorar espaço
+MUTATION_MIN    = 0.05  # mutação mínima mantém diversidade mesmo no final
 
 
 # ── Funções auxiliares ────────────────────────────────────────────────────────
@@ -133,16 +133,29 @@ city_geo = {name: (lat, lon) for name, lat, lon in greater_sp_cities}
 depot_x, depot_y = city_map[depot_name]
 depot = DeliveryPoint(id=0, name=depot_name, x=depot_x, y=depot_y, demand=0, priority=0)
 
-# Cria os pontos de entrega com demandas e prioridades simuladas
-# Em produção esses valores viriam de um sistema hospitalar real
+# Prioridades fixas por cidade — definidas conforme necessidade hospitalar
+# 3 = crítica  (medicamentos essenciais — visitar o mais cedo possível)
+# 2 = alta     (entregas importantes)
+# 1 = normal   (insumos regulares — default para cidades não listadas)
+CITY_PRIORITY = {
+    "São Paulo":       3,
+    "Guarulhos":       3,
+    "Santo André":     3,
+    "Suzano":          3,
+    "Mogi das Cruzes": 2,
+    "Mauá":            2,
+}
+
+# Cria os pontos de entrega com demandas simuladas e prioridades fixas
+# Em produção as demandas também viriam de um sistema hospitalar real
 delivery_points = []
 for idx, ((name, _, _), (x, y)) in enumerate(zip(greater_sp_cities, cities_locations), start=1):
     if name == depot_name:
         continue
     delivery_points.append(DeliveryPoint(
         id=idx, name=name, x=x, y=y,
-        demand=random.randint(5, 20),    # unidades de medicamento/insumo
-        priority=random.randint(1, 3),   # 1=normal, 2=alta, 3=crítica
+        demand=random.randint(5, 20),          # unidades de medicamento/insumo
+        priority=CITY_PRIORITY.get(name, 1),   # prioridade fixa por cidade
     ))
 
 # Define a frota de veículos com restrições realistas
@@ -195,8 +208,8 @@ population = (
 # ── Loop principal do Algoritmo Genético ──────────────────────────────────────
 best_fitness_values = []   # histórico de fitness para o gráfico
 best_km_values      = []   # histórico de KM reais para o gráfico
-best_fitness_old    = None
-sem_mudanca         = 0
+best_global         = float('inf')  # melhor fitness já encontrado (global)
+sem_melhoria        = 0             # gerações sem melhorar o melhor global
 WHITE               = (255, 255, 255)
 
 running = True
@@ -248,7 +261,9 @@ while running:
     draw_routes(screen, routes, problem.depot)
 
     # Labels das paradas: "Nº°VX NomeCidade" na cor do veículo
-    font              = pygame.font.SysFont("Arial", 14)
+    font      = pygame.font.SysFont("Arial", 15, bold=True)
+    font_small = pygame.font.SysFont("Arial", 13, bold=True)
+
     vehicle_color_map = {}
     cidx              = 0
     for route in routes:
@@ -256,36 +271,61 @@ while running:
             vehicle_color_map[route.vehicle_id] = cidx
             cidx += 1
 
+    def draw_label(surface, text, x, y, text_color):
+        """Renderiza label com fundo branco semitransparente para legibilidade."""
+        label = font_small.render(text, True, text_color)
+        w, h  = label.get_size()
+        pad   = 2
+        bg    = pygame.Surface((w + pad * 2, h + pad * 2), pygame.SRCALPHA)
+        bg.fill((255, 255, 255, 175))  # branco 68% opaco
+        surface.blit(bg,    (x - pad, y - pad))
+        surface.blit(label, (x, y))
+
     for route in routes:
         text_color = ROUTE_COLORS_RGB[vehicle_color_map[route.vehicle_id] % len(ROUTE_COLORS_RGB)]
         for i, stop in enumerate(route.stops):
-            pygame.draw.circle(screen, (0, 0, 0), (stop.x, stop.y), 6)
-            label = font.render(f"{i+1}°V{route.vehicle_id} {stop.name}", True, text_color)
-            screen.blit(label, (stop.x + 5, stop.y - 5))
+            pygame.draw.circle(screen, (0, 0, 0), (stop.x, stop.y), 7)
+            pygame.draw.circle(screen, text_color,  (stop.x, stop.y), 5)
+            draw_label(screen, f"{i+1}°V{route.vehicle_id} {stop.name}",
+                       stop.x + 8, stop.y - 9, text_color)
 
-    # Depósito destacado em verde
-    pygame.draw.circle(screen, (0, 200, 0), (problem.depot.x, problem.depot.y), 10)
-    screen.blit(
-        font.render(problem.depot.name, True, (0, 130, 0)),
-        (problem.depot.x + 5, problem.depot.y - 5),
-    )
+    # Depósito destacado em verde com label
+    pygame.draw.circle(screen, (0, 150, 0), (problem.depot.x, problem.depot.y), 12)
+    pygame.draw.circle(screen, (255, 255, 255), (problem.depot.x, problem.depot.y), 6)
+    draw_label(screen, f"⬤ {problem.depot.name}",
+               problem.depot.x + 14, problem.depot.y - 9, (0, 120, 0))
 
-    print(f"Gen {generation:4d} | Fitness: {best_fitness:.4f} | KM: {best_km_values[-1]:.1f}")
+    print(f"Gen {generation:4d} | Fitness: {best_fitness:.4f} | KM: {best_km_values[-1]:.1f} | Melhor: {best_global:.4f} ({sem_melhoria} sem melhoria)")
 
-    # ── Critério de parada por estagnação ─────────────────────────────────────
-    fitness_atual = round(best_fitness, 4)
-    sem_mudanca   = sem_mudanca + 1 if best_fitness_old == fitness_atual else 0
-    best_fitness_old = fitness_atual
-    if sem_mudanca >= STAGNATION_STOP:
-        print("Algoritmo convergiu — encerrando.")
+    # ── Critério de parada: sem melhoria no melhor global ─────────────────────
+    if best_fitness < best_global - 1e-6:
+        best_global   = best_fitness
+        sem_melhoria  = 0
+    else:
+        sem_melhoria += 1
+
+    if sem_melhoria >= STAGNATION_STOP:
+        print(f"Convergiu após {generation} gerações — melhor fitness: {best_global:.4f}")
         running = False
 
     # ── Nova geração ──────────────────────────────────────────────────────────
     # Elitismo: preserva os ELITE_SIZE melhores indivíduos
     new_population = list(population[:ELITE_SIZE])
 
-    # Taxa de mutação adaptativa: alta no início (exploração), baixa no final (refinamento)
-    mutation_prob = max(MUTATION_MIN, MUTATION_START * (1 - generation / 1500))
+    # Taxa de mutação adaptativa: sobe quando há estagnação (fuga de ótimo local)
+    # e desce quando há melhoria consistente (refinamento fino)
+    stagnation_ratio = sem_melhoria / STAGNATION_STOP
+    mutation_prob = MUTATION_MIN + (MUTATION_START - MUTATION_MIN) * stagnation_ratio
+    mutation_prob = min(mutation_prob, MUTATION_START)
+
+    # ── Reinicialização parcial quando a população estagna muito ──────────────
+    # Se ficou 40% do limite sem melhoria, substitui metade da população
+    # por novos indivíduos aleatórios — escapa do ótimo local
+    RESTART_THRESHOLD = int(STAGNATION_STOP * 0.4)
+    if sem_melhoria > 0 and sem_melhoria % RESTART_THRESHOLD == 0:
+        n_restart = POPULATION_SIZE // 2
+        print(f"[restart] Reinicializando {n_restart} indivíduos para escapar do ótimo local...")
+        new_population.extend(generate_random_population1(problem, n_restart))
 
     while len(new_population) < POPULATION_SIZE:
         # Seleção por torneio para os dois pais
@@ -296,9 +336,8 @@ while running:
         child = order_crossover(parent1, parent2)
         child = mutate(child, mutation_prob)
 
-        # 5% de chance de aplicar 2-opt ao filho (refinamento estocástico)
-        if random.random() < 0.05:
-            child = two_opt(child, problem)
+        # 2-opt nos filhos desativado — muito lento com populações grandes
+        # O 2-opt é aplicado apenas no melhor indivíduo de cada geração (acima)
 
         new_population.append(child)
 

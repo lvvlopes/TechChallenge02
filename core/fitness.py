@@ -60,9 +60,9 @@ def calculo_fitness(chromosome: List[int], problem: VRPProblem) -> float:
             dist = math.sqrt((last.x - stop.x) ** 2 + (last.y - stop.y) ** 2)
             route_dist += dist
 
-            # Penalidade de prioridade: posição relativa * prioridade
-            # (0.0 = primeira parada, 1.0 = última parada)
-            # Entregas críticas (priority=3) no final da rota são mais penalizadas
+            # Penalidade de prioridade: leve, pois a ordem por prioridade já é
+            # garantida pelo VRPDecoder._sort_by_priority() antes da decodificação.
+            # Aqui serve apenas para desempate entre soluções de mesma distância.
             rel_pos = position / max(len(route.stops) - 1, 1)
             priority_penalty += rel_pos * stop.priority
 

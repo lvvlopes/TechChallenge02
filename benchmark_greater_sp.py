@@ -45,19 +45,25 @@ greater_sp_cities = [
 
 
 def project_cities_to_screen(cities, width, height, x_offset, node_radius):
-    """Projeta coordenadas lat/lon em pixels de tela."""
+    """Projeta coordenadas lat/lon em pixels de tela.
+
+    Usa margem generosa (60px) para que cidades nas bordas nunca
+    sejam cortadas, mesmo com labels longas ao lado dos pontos.
+    """
     lats = [lat for _, lat, _ in cities]
     lons = [lon for _, _, lon in cities]
     min_lat, max_lat = min(lats), max(lats)
     min_lon, max_lon = min(lons), max(lons)
 
-    usable_width  = width  - x_offset - 2 * node_radius
-    usable_height = height - 2 * node_radius
+    MARGIN = 60  # pixels de margem em cada borda — evita corte de cidades/labels
+
+    usable_width  = width  - x_offset - 2 * MARGIN
+    usable_height = height - 2 * MARGIN
 
     projected = []
     for _, lat, lon in cities:
-        x = x_offset + node_radius + int(((lon - min_lon) / (max_lon - min_lon)) * usable_width)
-        y = node_radius + int(((max_lat - lat) / (max_lat - min_lat)) * usable_height)
+        x = x_offset + MARGIN + int(((lon - min_lon) / (max_lon - min_lon)) * usable_width)
+        y = MARGIN + int(((max_lat - lat) / (max_lat - min_lat)) * usable_height)
         projected.append((x, y))
 
     return projected
