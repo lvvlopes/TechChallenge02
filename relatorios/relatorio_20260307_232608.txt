@@ -1,0 +1,97 @@
+## 1. INSTRUÇÕES POR MOTORISTA
+
+### Veículo 1
+1. ⚠ Santo André | 5 unid. | Chegada: 08:00 + 6h18 = 14:18
+2. ⚠ São Paulo | 9 unid. | Chegada: 14:18 + 6h18 = 20:36
+3. ⚠ Guarulhos | 6 unid. | Chegada: 20:36 + 6h18 = 02:54
+4. ⚠ Suzano | 19 unid. | Chegada: 02:54 + 6h18 = 09:12
+5. ! Mauá | 7 unid. | Chegada: 09:12 + 6h18 = 15:30
+6. ! Mogi das Cruzes | 14 unid. | Chegada: 15:30 + 6h18 = 21:48
+7. Ribeirão Pires | 5 unid. | Chegada: 21:48 + 6h18 = 04:06
+8. Rio Grande da Serra | 18 unid. | Chegada: 04:06 + 6h18 = 10:24
+9. São Bernardo do Campo | 8 unid. | Chegada: 10:24 + 6h18 = 16:42
+10. Diadema | 14 unid. | Chegada: 16:42 + 6h18 = 23:00
+11. São Caetano do Sul | 19 unid. | Chegada: 23:00 + 6h18 = 05:18
+12. Osasco | 14 unid. | Chegada: 05:18 + 6h18 = 11:36
+13. Carapicuíba | 11 unid. | Chegada: 11:36 + 6h18 = 17:54
+
+**Instrução de Retorno ao Depósito:** Após a entrega em Carapicuíba, retornar ao Depósito Barueri.
+
+---
+
+### Veículo 2
+1. Jandira | 6 unid. | Chegada: 08:00 + 3h37 = 11:37
+2. Itapevi | 13 unid. | Chegada: 11:37 + 3h37 = 15:14
+3. Cotia | 17 unid. | Chegada: 15:14 + 3h37 = 18:51
+4. Taboão da Serra | 6 unid. | Chegada: 18:51 + 3h37 = 22:28
+5. Embu das Artes | 13 unid. | Chegada: 22:28 + 3h37 = 02:05
+6. Itapecerica da Serra | 12 unid. | Chegada: 02:05 + 3h37 = 05:42
+7. Embu-Guaçu | 18 unid. | Chegada: 05:42 + 3h37 = 09:19
+8. São Lourenço da Serra | 19 unid. | Chegada: 09:19 + 3h37 = 12:56
+9. Juquitiba | 7 unid. | Chegada: 12:56 + 3h37 = 16:33
+10. Vargem Grande Paulista | 12 unid. | Chegada: 16:33 + 3h37 = 20:10
+11. Santana de Parnaíba | 12 unid. | Chegada: 20:10 + 3h37 = 23:47
+
+**Instrução de Retorno ao Depósito:** Após a entrega em Santana de Parnaíba, retornar ao Depósito Barueri.
+
+---
+
+### Veículo 3
+1. Pirapora do Bom Jesus | 16 unid. | Chegada: 08:00 + 7h00 = 15:00
+2. Cajamar | 5 unid. | Chegada: 15:00 + 7h00 = 22:00
+3. Caieiras | 19 unid. | Chegada: 22:00 + 7h00 = 05:00
+4. Franco da Rocha | 15 unid. | Chegada: 05:00 + 7h00 = 12:00
+5. Francisco Morato | 12 unid. | Chegada: 12:00 + 7h00 = 19:00
+6. Mairiporã | 14 unid. | Chegada: 19:00 + 7h00 = 02:00
+7. Itaquaquecetuba | 11 unid. | Chegada: 02:00 + 7h00 = 09:00
+8. Ferraz de Vasconcelos | 16 unid. | Chegada: 09:00 + 7h00 = 16:00
+9. Poá | 16 unid. | Chegada: 16:00 + 7h00 = 23:00
+10. Biritiba-Mirim | 9 unid. | Chegada: 23:00 + 7h00 = 06:00
+11. Salesópolis | 16 unid. | Chegada: 06:00 + 7h00 = 13:00
+12. Guararema | 12 unid. | Chegada: 13:00 + 7h00 = 20:00
+13. Santa Isabel | 14 unid. | Chegada: 20:00 + 7h00 = 03:00
+14. Arujá | 17 unid. | Chegada: 03:00 + 7h00 = 10:00
+
+**Instrução de Retorno ao Depósito:** Após a entrega em Arujá, retornar ao Depósito Barueri.
+
+---
+
+## 2. RELATÓRIO DE EFICIÊNCIA
+
+- **Distância total percorrida pela frota:** 680.0 km
+- **Tempo total estimado de operação por veículo:**
+  - Veículo 1: 6.3 h
+  - Veículo 2: 3.7 h
+  - Veículo 3: 7.0 h
+- **Taxa de utilização de capacidade por veículo:**
+  - Veículo 1: 99.33% (149/150)
+  - Veículo 2: 90.00% (135/150)
+  - Veículo 3: 38.40% (192/500)
+- **Veículo mais eficiente:** Veículo 1 (99.33%)
+- **Veículo menos eficiente:** Veículo 3 (38.40%)
+- **Comparativo com a média esperada:** A média de utilização de capacidade é de 76.24% (466/800), indicando que o Veículo 1 teve um desempenho acima da média, enquanto o Veículo 3 ficou abaixo.
+
+---
+
+## 3. ALERTAS DE PRIORIDADE CRÍTICA
+
+- **Entregas críticas e veículos responsáveis:**
+  - ⚠ Santo André - Veículo 1
+  - ⚠ São Paulo - Veículo 1
+  - ⚠ Guarulhos - Veículo 1
+  - ⚠ Suzano - Veículo 1
+
+- **Confirmação de posição na rota:** Todas as entregas críticas estão nas primeiras posições da rota do Veículo 1.
+- **Estimativa de horário de chegada a cada entrega crítica (partindo às 08:00):**
+  - Santo André: 14:18
+  - São Paulo: 20:36
+  - Guarulhos: 02:54
+  - Suzano: 09:12
+
+- **Recomendações em caso de atraso:** Caso ocorra um atraso em alguma entrega crítica, é essencial notificar imediatamente o setor responsável para que possam ser tomadas providências, como a reprogramação de entregas subsequentes ou a alocação de recursos adicionais.
+
+---
+
+## 4. RESUMO EXECUTIVO
+
+A operação de distribuição do dia 07/03/2026 foi realizada com sucesso, abrangendo 38 cidades e totalizando uma distância de 680 km. O tempo total estimado de operação variou entre 3.7 h e 7.0 h para os veículos utilizados. A eficiência geral foi alta, com destaque para o Veículo 1, que apresentou uma taxa de utilização de quase 100%. Recomenda-se monitorar a eficiência do Veículo 3 e considerar a redistribuição de cargas para otimizar a operação.

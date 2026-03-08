@@ -45,6 +45,7 @@ from domain.models import DeliveryPoint, Vehicle
 from domain.problem import VRPProblem
 from vrp.decoder import VRPDecoder
 from map_background import build_background
+from llm_report import generate_report
 
 
 # ── Configurações Pygame ──────────────────────────────────────────────────────
@@ -206,6 +207,9 @@ population = (
 
 
 # ── Loop principal do Algoritmo Genético ──────────────────────────────────────
+# Flag para evitar gerar relatório duas vezes seguidas sem nova convergência
+_llm_report_generated = False
+
 best_fitness_values = []   # histórico de fitness para o gráfico
 best_km_values      = []   # histórico de KM reais para o gráfico
 best_global         = float('inf')  # melhor fitness já encontrado (global)
@@ -221,6 +225,23 @@ while running:
             running = False
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_q:
             running = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_l:
+            # Tecla L — gera relatório LLM da solução atual
+            if 'routes' in dir() and routes:
+                print('[LLM] Gerando relatório... (pode demorar alguns segundos)')
+                pygame.display.set_caption('VRP — Gerando relatório LLM...')
+                generate_report(
+                    routes=routes,
+                    problem=problem,
+                    city_geo=city_geo,
+                    depot_name=depot_name,
+                    generation=generation,
+                    best_fitness=best_fitness if 'best_fitness' in dir() else 0,
+                    total_km=best_km_values[-1] if best_km_values else 0,
+                )
+                pygame.display.set_caption('VRP — Distribuição de Medicamentos RMSP')
+            else:
+                print('[LLM] Aguarde o AG convergir antes de gerar o relatório.')
 
     generation = next(generation_counter)
 
@@ -306,6 +327,18 @@ while running:
 
     if sem_melhoria >= STAGNATION_STOP:
         print(f"Convergiu após {generation} gerações — melhor fitness: {best_global:.4f}")
+        if not _llm_report_generated:
+            print('[LLM] Gerando relatório final automaticamente...')
+            generate_report(
+                routes=routes,
+                problem=problem,
+                city_geo=city_geo,
+                depot_name=depot_name,
+                generation=generation,
+                best_fitness=best_global,
+                total_km=best_km_values[-1] if best_km_values else 0,
+            )
+            _llm_report_generated = True
         running = False
 
     # ── Nova geração ──────────────────────────────────────────────────────────

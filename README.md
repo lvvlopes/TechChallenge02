@@ -40,6 +40,7 @@ com visualização em tempo real das rotas sobre o mapa geográfico real da Gran
 | Autonomia limitada dos veículos | `domain/models.py` → `Vehicle.max_distance` |
 | Múltiplos veículos (VRP) | `vrp/decoder.py` → `VRPDecoder.decode()` |
 | Visualização das rotas em mapa real (OSM) | `draw_functions.py`, `map_background.py` |
+| Integração com LLM (relatórios, instruções) | `llm_report.py` → `generate_report()` |
 | Refinamento local (2-opt) | `core/fitness.py` → `two_opt()` |
 | Dataset real (39 cidades RMSP) | `benchmark_greater_sp.py` |
 
@@ -54,6 +55,7 @@ genetic_algorithm_tsp/
 ├── genetic_algorithm.py      # Operadores genéticos: crossover OX, mutação, ordenação
 ├── draw_functions.py         # Visualização: gráficos fitness/KM e rotas no mapa
 ├── benchmark_greater_sp.py   # Dataset: 39 municípios da RMSP com lat/lon
+├── llm_report.py             # Integração LLM: geração de relatórios e instruções
 ├── map_background.py         # Download e cache de tiles OpenStreetMap
 ├── environment.yml           # Ambiente Conda com todas as dependências
 │
@@ -274,6 +276,52 @@ A janela (1500×800px) é dividida em duas áreas:
 - Labels com fundo semitransparente: `Nº°VX NomeCidade`
 - Depósito (Barueri) marcado em verde com círculo maior
 - Margem de 60px em todas as bordas — cidades nunca cortadas
+
+
+---
+
+## Integração com LLM
+
+O sistema integra com **OpenAI GPT-4o-mini** para geração automática de relatórios
+operacionais ao final de cada execução do AG.
+
+### Configuração da chave de API
+
+```bash
+# Copie o arquivo de exemplo
+cp .env.example .env
+
+# Edite e coloque sua chave (obtenha em https://platform.openai.com/api-keys)
+OPENAI_API_KEY=sk-sua-chave-aqui
+```
+
+### Como ativar
+
+| Quando | Como |
+|---|---|
+| **Automático** | Ao convergir, o relatório é gerado e salvo em `relatorios/` |
+| **Manual** | Pressione **`L`** durante a execução para gerar a qualquer momento |
+
+### O que é gerado
+
+O LLM recebe o contexto completo da operação e gera 4 seções:
+
+**1. Instruções por Motorista** — sequência de cidades, quantidades, horários estimados (partindo às 08h), destaque para entregas críticas com ⚠
+
+**2. Relatório de Eficiência** — distância por veículo, taxa de utilização de capacidade, comparativo entre veículos
+
+**3. Alertas de Prioridade Crítica** — confirmação de que São Paulo, Guarulhos, Santo André e Suzano estão nas primeiras posições, horários estimados de chegada
+
+**4. Resumo Executivo** — 5 linhas para o gestor com métricas principais e recomendações operacionais
+
+### Sem chave configurada
+
+Se `OPENAI_API_KEY` não estiver definida, o sistema exibe o contexto estruturado
+da operação (sem chamada LLM) e salva normalmente em `relatorios/`.
+
+### Relatórios salvos
+
+Cada execução salva um arquivo em `relatorios/relatorio_YYYYMMDD_HHMMSS.txt`.
 
 ---
 
