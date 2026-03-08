@@ -19,6 +19,8 @@ com visualização em tempo real das rotas sobre o mapa geográfico real da Gran
 - [Restrições Implementadas](#restrições-implementadas)
 - [Prioridades de Entrega](#prioridades-de-entrega)
 - [Visualização](#visualização)
+- [Integração com LLM](#integração-com-llm)
+- [Testes Automatizados](#testes-automatizados)
 - [Configurações Ajustáveis](#configurações-ajustáveis)
 
 ---
@@ -41,6 +43,8 @@ com visualização em tempo real das rotas sobre o mapa geográfico real da Gran
 | Múltiplos veículos (VRP) | `vrp/decoder.py` → `VRPDecoder.decode()` |
 | Visualização das rotas em mapa real (OSM) | `draw_functions.py`, `map_background.py` |
 | Integração com LLM (relatórios, instruções) | `llm_report.py` → `generate_report()` |
+| Testes automatizados (unitários e de restrição) | `tests/test_*.py` — 58 testes, 100% aprovados |
+| Relatório gerencial de testes via LLM | `generate_test_report.py` |
 | Refinamento local (2-opt) | `core/fitness.py` → `two_opt()` |
 | Dataset real (39 cidades RMSP) | `benchmark_greater_sp.py` |
 
@@ -55,7 +59,8 @@ genetic_algorithm_tsp/
 ├── genetic_algorithm.py      # Operadores genéticos: crossover OX, mutação, ordenação
 ├── draw_functions.py         # Visualização: gráficos fitness/KM e rotas no mapa
 ├── benchmark_greater_sp.py   # Dataset: 39 municípios da RMSP com lat/lon
-├── llm_report.py             # Integração LLM: geração de relatórios e instruções
+├── llm_report.py             # Integração LLM: relatórios operacionais das rotas
+├── generate_test_report.py   # Executa testes + gera relatório gerencial via LLM
 ├── map_background.py         # Download e cache de tiles OpenStreetMap
 ├── environment.yml           # Ambiente Conda com todas as dependências
 │
@@ -66,6 +71,11 @@ genetic_algorithm_tsp/
 ├── domain/
 │   ├── models.py             # Entidades: DeliveryPoint, Vehicle, Route
 │   └── problem.py            # VRPProblem — agrega depot, pontos e frota
+│
+├── tests/
+│   ├── test_genetic_algorithm.py  # Testes: order_crossover, mutate, sort_population
+│   ├── test_decoder.py            # Testes: VRPDecoder — prioridade, capacidade, autonomia
+│   └── test_fitness.py            # Testes: calculo_fitness, route_distance, two_opt
 │
 └── vrp/
     └── decoder.py            # Decodifica cromossomo → rotas respeitando restrições
@@ -173,6 +183,7 @@ As execuções seguintes carregam do cache e são instantâneas.
 
 **Controles durante a execução:**
 - `Q` ou fechar a janela → encerra o algoritmo
+- `L` → gera relatório LLM da solução atual (salvo em `relatorios/`)
 - O sistema encerra automaticamente após **400 gerações sem melhoria no melhor fitness global**
 
 **Console durante a execução:**
@@ -322,6 +333,60 @@ da operação (sem chamada LLM) e salva normalmente em `relatorios/`.
 ### Relatórios salvos
 
 Cada execução salva um arquivo em `relatorios/relatorio_YYYYMMDD_HHMMSS.txt`.
+
+
+---
+
+## Testes Automatizados
+
+O projeto conta com **58 testes automatizados** cobrindo os módulos críticos do sistema.
+
+### Executar os testes
+
+```bash
+# Executa todos os testes com saída detalhada
+python -m unittest discover -s tests -v
+```
+
+Resultado esperado:
+```
+Ran 58 tests in 0.007s
+OK
+```
+
+### Cobertura dos testes
+
+| Arquivo | Classe | Testes | O que cobre |
+|---|---|---|---|
+| `test_genetic_algorithm.py` | `TestOrderCrossover` | 8 | Validade do crossover OX — permutação, ausência de duplicatas, preservação dos genes |
+| `test_genetic_algorithm.py` | `TestMutate` | 8 | Mutação adjacent swap — integridade, imutabilidade do original, comportamento probabilístico |
+| `test_genetic_algorithm.py` | `TestSortPopulation` | 6 | Ordenação por fitness — corretude, acoplamento cromossomo-fitness |
+| `test_decoder.py` | `TestSortByPriority` | 6 | Ordem crítica > alta > normal — preservação de genes, ordem relativa |
+| `test_decoder.py` | `TestDecoderIntegridade` | 3 | Todos os pontos entregues, sem duplicatas, tipo de retorno |
+| `test_decoder.py` | `TestDecoderCapacidade` | 3 | Carga nunca excede capacidade, rota fechada ao atingir limite |
+| `test_decoder.py` | `TestDecoderAutonomia` | 2 | Múltiplas rotas com autonomia curta, entrega completa |
+| `test_decoder.py` | `TestDecoderMultiplosVeiculos` | 3 | Uso de múltiplos veículos, IDs válidos, frota vazia |
+| `test_fitness.py` | `TestCalculoFitness` | 7 | Retorno float finito positivo, casos extremos |
+| `test_fitness.py` | `TestRouteDistance` | 5 | Distância euclidiana — Pitágoras, simetria, ponto único |
+| `test_fitness.py` | `TestTwoOpt` | 7 | Melhoria sem piora, integridade da permutação, casos extremos |
+
+### Relatório gerencial de testes via LLM
+
+O script `generate_test_report.py` executa os testes, captura os resultados e usa
+o GPT-4o-mini para gerar um relatório gerencial explicando as regras validadas
+e os resultados obtidos em linguagem acessível.
+
+```bash
+python generate_test_report.py
+```
+
+O relatório é salvo em `relatorios/relatorio_testes_YYYYMMDD_HHMMSS.txt` e contém:
+
+- **Visão geral** do projeto e da importância dos testes
+- **Estratégia de testes** — quais módulos foram priorizados e por quê
+- **Regras de negócio validadas** — explicação gerencial de cada conjunto de testes
+- **Resultados obtidos** — análise dos números, tempo de execução e qualidade
+- **Conclusão e recomendações** para evolução futura da suite
 
 ---
 
