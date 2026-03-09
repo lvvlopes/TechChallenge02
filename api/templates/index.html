@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VRP Hospitalar — RMSP</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f1117;
+      --panel:    #1a1d27;
+      --border:   #2a2d3e;
+      --accent:   #4f8ef7;
+      --success:  #3ecf8e;
+      --warning:  #f5a623;
+      --danger:   #e55353;
+      --text:     #e2e8f0;
+      --muted:    #7c8399;
+      --v1:       #e55353;
+      --v2:       #4f8ef7;
+      --v3:       #3ecf8e;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.3px;
+    }
+
+    header span.subtitle {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #status-badge {
+      margin-left: auto;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--border);
+      color: var(--muted);
+      transition: all 0.3s;
+    }
+
+    #status-badge.running  { background: #1a3a6b; color: var(--accent); }
+    #status-badge.done     { background: #0d3b2a; color: var(--success); }
+    #status-badge.error    { background: #3b1a1a; color: var(--danger); }
+
+    /* ── Layout ─────────────────────────────────────────────────── */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────── */
+    .sidebar {
+      width: 320px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Form ────────────────────────────────────────────────────── */
+    .form-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 10px;
+    }
+
+    label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .range-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    /* ── Botão principal ─────────────────────────────────────────── */
+    #btn-otimizar {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      letter-spacing: 0.5px;
+    }
+
+    #btn-otimizar:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    #btn-otimizar:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Progress ────────────────────────────────────────────────── */
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .metric-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+    }
+
+    .metric-label { font-size: 10px; color: var(--muted); }
+    .metric-value { font-size: 18px; font-weight: 700; color: var(--text); margin-top: 2px; }
+
+    /* ── Charts ──────────────────────────────────────────────────── */
+    .chart-wrapper {
+      position: relative;
+      height: 120px;
+      margin-bottom: 6px;
+    }
+
+    /* ── Rotas ───────────────────────────────────────────────────── */
+    .route-item {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .route-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .route-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .route-title { font-size: 13px; font-weight: 600; }
+
+    .route-stats {
+      display: flex;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .stop-list {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+
+    .stop-critical { color: var(--danger); font-weight: 600; }
+    .stop-high     { color: var(--warning); }
+
+    /* ── Relatório LLM ───────────────────────────────────────────── */
+    #llm-report {
+      font-size: 12px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-wrap;
+      padding: 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    #llm-report h2 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 12px 0 4px;
+    }
+
+    /* ── Mapa ────────────────────────────────────────────────────── */
+    #map {
+      flex: 1;
+      background: #1a2030;
+    }
+
+    /* ── Tabs ────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 12px;
+    }
+
+    .tab-btn {
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Log ─────────────────────────────────────────────────────── */
+    #log {
+      font-family: 'Cascadia Code', 'Courier New', monospace;
+      font-size: 11px;
+      color: var(--success);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      height: 180px;
+      overflow-y: auto;
+      line-height: 1.6;
+    }
+
+    .log-line { color: var(--muted); }
+    .log-line.ok { color: var(--success); }
+    .log-line.info { color: var(--accent); }
+    .log-line.warn { color: var(--warning); }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header>
+  <div>
+    <h1>🏥 VRP — Distribuição de Medicamentos</h1>
+    <span class="subtitle">Região Metropolitana de São Paulo · Algoritmo Genético</span>
+  </div>
+  <div id="status-badge">Aguardando</div>
+</header>
+
+<!-- ── Workspace ────────────────────────────────────────────────────────── -->
+<div class="workspace">
+
+  <!-- ── Sidebar ────────────────────────────────────────────────────────── -->
+  <div class="sidebar">
+
+    <!-- Config -->
+    <div class="section">
+      <div class="section-title">Configuração do AG</div>
+
+      <div class="form-row">
+        <label>População: <span class="range-value" id="val-pop">50</span></label>
+        <input type="range" id="cfg-pop" min="20" max="300" value="50"
+               oninput="document.getElementById('val-pop').textContent=this.value" />
+      </div>
+
+      <div class="form-row">
+        <label>Estagnação (gerações): <span class="range-value" id="val-stag">150</span></label>
+        <input type="range" id="cfg-stag" min="50" max="1000" value="150" step="50"
+               oninput="document.getElementById('val-stag').textContent=this.value" />
+      </div>
+
+      <div class="form-row">
+        <label>Mutação inicial: <span class="range-value" id="val-mut">0.30</span></label>
+        <input type="range" id="cfg-mut" min="0.05" max="0.90" value="0.30" step="0.05"
+               oninput="document.getElementById('val-mut').textContent=parseFloat(this.value).toFixed(2)" />
+      </div>
+
+      <button id="btn-otimizar" onclick="iniciarOtimizacao()">▶ Otimizar Rotas</button>
+    </div>
+
+    <!-- Progresso -->
+    <div class="section">
+      <div class="section-title">Progresso</div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progress-bar"></div>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-label">Geração</div>
+          <div class="metric-value" id="m-gen">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Fitness</div>
+          <div class="metric-value" id="m-fit">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Distância Total</div>
+          <div class="metric-value" id="m-km">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Sem melhoria</div>
+          <div class="metric-value" id="m-stag">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="section">
+      <div class="section-title">Evolução</div>
+      <div class="chart-wrapper">
+        <canvas id="chart-fitness"></canvas>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="chart-km"></canvas>
+      </div>
+    </div>
+
+    <!-- Tabs: Rotas | Log | Relatório -->
+    <div class="section" style="flex:1">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('rotas', this)">Rotas</button>
+        <button class="tab-btn" onclick="showTab('log', this)">Log</button>
+        <button class="tab-btn" onclick="showTab('relatorio', this)">Relatório LLM</button>
+        <button class="tab-btn" onclick="showTab('testes', this)">🧪 Testes</button>
+      </div>
+
+      <div id="tab-rotas" class="tab-content active">
+        <div id="routes-container">
+          <p style="font-size:12px; color:var(--muted)">As rotas aparecerão aqui após a convergência.</p>
+        </div>
+      </div>
+
+      <div id="tab-log" class="tab-content">
+        <div id="log"></div>
+      </div>
+
+      <div id="tab-relatorio" class="tab-content">
+        <div id="llm-report">O relatório LLM será gerado ao convergir...</div>
+      </div>
+
+      <div id="tab-testes" class="tab-content">
+        <button id="btn-testes" onclick="executarTestes()" style="
+          width:100%; padding:10px; margin-bottom:12px;
+          background:#3ecf8e; color:#0f1117; border:none; border-radius:8px;
+          font-size:13px; font-weight:700; cursor:pointer; transition:opacity 0.2s;">
+          ▶ Executar Testes + Relatório LLM
+        </button>
+
+        <!-- Stats dos testes -->
+        <div id="test-stats" style="display:none; margin-bottom:12px;">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-label">Total</div>
+              <div class="metric-value" id="ts-total">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Passaram</div>
+              <div class="metric-value" id="ts-passou" style="color:var(--success)">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Falharam</div>
+              <div class="metric-value" id="ts-falhou" style="color:var(--danger)">—</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Taxa</div>
+              <div class="metric-value" id="ts-taxa" style="color:var(--accent)">—</div>
+            </div>
+          </div>
+          <!-- Barra de sucesso -->
+          <div class="progress-bar-bg" style="margin-top:8px">
+            <div class="progress-bar-fill" id="test-progress-bar" style="background:var(--success)"></div>
+          </div>
+        </div>
+
+        <!-- Status de execução -->
+        <div id="test-status-msg" style="font-size:12px; color:var(--muted); margin-bottom:8px"></div>
+
+        <!-- Relatório LLM dos testes -->
+        <div id="test-llm-report" style="
+          font-size:12px; line-height:1.7; color:var(--text);
+          white-space:pre-wrap; padding:12px;
+          background:var(--bg); border:1px solid var(--border);
+          border-radius:6px; max-height:500px; overflow-y:auto;
+          display:none;">
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- ── Mapa ────────────────────────────────────────────────────────────── -->
+  <div id="map"></div>
+
+</div><!-- /workspace -->
+
+<script>
+// ── Estado global ─────────────────────────────────────────────────────────
+let jobId       = null;
+let pollTimer   = null;
+let mapInstance = null;
+let routeLayers = [];
+let markerLayers = [];
+let chartFitness = null;
+let chartKm      = null;
+
+const COLORS = {
+  1: '#e55353',  // Veículo 1 — vermelho
+  2: '#4f8ef7',  // Veículo 2 — azul
+  3: '#3ecf8e',  // Veículo 3 — verde
+  4: '#f5a623',  // Veículo 4 — laranja
+  5: '#a78bfa',  // Veículo 5 — roxo
+};
+
+const PRIORITY_LABEL = { 1: 'Normal', 2: 'Alta ⚡', 3: 'CRÍTICA ⚠' };
+
+// ── Inicializa mapa ───────────────────────────────────────────────────────
+function initMap() {
+  mapInstance = L.map('map', { zoomControl: true }).setView([-23.55, -46.63], 10);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 18,
+  }).addTo(mapInstance);
+}
+
+// ── Inicializa gráficos ───────────────────────────────────────────────────
+function initCharts() {
+  const opts = (label, color) => ({
+    type: 'line',
+    data: { labels: [], datasets: [{ label, data: [], borderColor: color,
+      backgroundColor: color + '22', borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.3 }] },
+    options: {
+      animation: false,
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#7c8399', font: { size: 10 } } } },
+      scales: {
+        x: { display: false },
+        y: { ticks: { color: '#7c8399', font: { size: 9 } }, grid: { color: '#2a2d3e' } }
+      }
+    }
+  });
+
+  chartFitness = new Chart(document.getElementById('chart-fitness'), opts('Fitness', '#4f8ef7'));
+  chartKm      = new Chart(document.getElementById('chart-km'),      opts('KM', '#3ecf8e'));
+}
+
+// ── Atualiza gráficos ─────────────────────────────────────────────────────
+function updateCharts(fitnessHistory, kmHistory) {
+  const labels = fitnessHistory.map((_, i) => i + 1);
+
+  chartFitness.data.labels = labels;
+  chartFitness.data.datasets[0].data = fitnessHistory;
+  chartFitness.update('none');
+
+  chartKm.data.labels = labels;
+  chartKm.data.datasets[0].data = kmHistory;
+  chartKm.update('none');
+}
+
+// ── Log ───────────────────────────────────────────────────────────────────
+function log(msg, cls = '') {
+  const el  = document.getElementById('log');
+  const div = document.createElement('div');
+  div.className = 'log-line ' + cls;
+  div.textContent = new Date().toLocaleTimeString('pt-BR') + ' › ' + msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────────────
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── Badge ─────────────────────────────────────────────────────────────────
+function setBadge(text, cls) {
+  const b = document.getElementById('status-badge');
+  b.textContent = text;
+  b.className = cls;
+}
+
+// ── Desenha rotas no mapa ─────────────────────────────────────────────────
+function drawRoutes(routes, depot) {
+  // Limpa camadas anteriores
+  routeLayers.forEach(l => mapInstance.removeLayer(l));
+  markerLayers.forEach(l => mapInstance.removeLayer(l));
+  routeLayers = [];
+  markerLayers = [];
+
+  // Ícone do depósito
+  const depotIcon = L.divIcon({
+    html: `<div style="
+      background:#3ecf8e; border:2px solid #fff; border-radius:50%;
+      width:16px; height:16px; box-shadow:0 0 6px rgba(62,207,142,0.7)">
+    </div>`,
+    className: '', iconSize: [16, 16], iconAnchor: [8, 8],
+  });
+
+  const depotMarker = L.marker([depot.lat, depot.lon], { icon: depotIcon })
+    .bindTooltip(`🏭 Depósito: ${depot.name}`, { permanent: false })
+    .addTo(mapInstance);
+  markerLayers.push(depotMarker);
+
+  routes.forEach(route => {
+    const color = COLORS[route.vehicle_id] || '#ffffff';
+
+    // Polyline: depot → stops → depot
+    const coords = [
+      [depot.lat, depot.lon],
+      ...route.stops.map(s => [s.lat, s.lon]),
+      [depot.lat, depot.lon],
+    ];
+
+    const line = L.polyline(coords, {
+      color, weight: 3, opacity: 0.85, dashArray: null,
+    }).addTo(mapInstance);
+    routeLayers.push(line);
+
+    // Markers das cidades
+    route.stops.forEach((stop, idx) => {
+      const pri = stop.priority;
+      const dotColor = pri === 3 ? '#e55353' : (pri === 2 ? '#f5a623' : color);
+      const ring     = pri === 3 ? '3px solid #fff' : '2px solid rgba(255,255,255,0.5)';
+
+      const icon = L.divIcon({
+        html: `<div style="
+          background:${dotColor}; border:${ring}; border-radius:50%;
+          width:10px; height:10px; box-shadow:0 0 4px rgba(0,0,0,0.5)">
+        </div>`,
+        className: '', iconSize: [10, 10], iconAnchor: [5, 5],
+      });
+
+      const marker = L.marker([stop.lat, stop.lon], { icon })
+        .bindTooltip(
+          `<b>${idx + 1}. ${stop.name}</b><br>` +
+          `Veículo ${route.vehicle_id} · ${stop.demand} unid.<br>` +
+          `Prioridade: ${PRIORITY_LABEL[stop.priority]}`,
+          { direction: 'top' }
+        )
+        .addTo(mapInstance);
+      markerLayers.push(marker);
+    });
+  });
+
+  // Ajusta zoom para caber tudo
+  const allCoords = [
+    [depot.lat, depot.lon],
+    ...routes.flatMap(r => r.stops.map(s => [s.lat, s.lon])),
+  ];
+  if (allCoords.length > 1) {
+    mapInstance.fitBounds(L.latLngBounds(allCoords), { padding: [30, 30] });
+  }
+}
+
+// ── Renderiza painel de rotas ─────────────────────────────────────────────
+function renderRoutes(routes) {
+  const container = document.getElementById('routes-container');
+  container.innerHTML = '';
+
+  routes.forEach(route => {
+    const color = COLORS[route.vehicle_id] || '#fff';
+    const stops_html = route.stops.map((s, i) => {
+      const cls = s.priority === 3 ? 'stop-critical' : (s.priority === 2 ? 'stop-high' : '');
+      const icon = s.priority === 3 ? '⚠ ' : (s.priority === 2 ? '⚡ ' : '');
+      return `<span class="${cls}">${i + 1}. ${icon}${s.name} (${s.demand}u)</span>`;
+    }).join('<br>');
+
+    container.innerHTML += `
+      <div class="route-item">
+        <div class="route-header">
+          <div class="route-dot" style="background:${color}"></div>
+          <span class="route-title">Veículo ${route.vehicle_id}</span>
+        </div>
+        <div class="route-stats">
+          <span>📦 ${route.total_load} unid.</span>
+          <span>📍 ${route.stops.length} paradas</span>
+          <span>🛣 ${route.total_km} km</span>
+        </div>
+        <div class="stop-list">${stops_html}</div>
+      </div>`;
+  });
+}
+
+// ── Renderiza relatório LLM ───────────────────────────────────────────────
+function renderLLM(text) {
+  const el = document.getElementById('llm-report');
+  // Converte headers markdown ## em <h2>
+  const html = text
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  el.innerHTML = html;
+}
+
+// ── Polling de status ─────────────────────────────────────────────────────
+async function pollStatus() {
+  if (!jobId) return;
+
+  try {
+    const res  = await fetch(`/status/${jobId}`);
+    const data = await res.json();
+
+    // Atualiza métricas
+    document.getElementById('progress-bar').style.width = data.progress + '%';
+    document.getElementById('m-gen').textContent  = data.generation  ?? '—';
+    document.getElementById('m-fit').textContent  = data.best_fitness ?? '—';
+    document.getElementById('m-km').textContent   = data.current_km ? data.current_km + ' km' : '—';
+    document.getElementById('m-stag').textContent = data.sem_melhoria ?? '—';
+
+    if (data.fitness_history?.length) {
+      updateCharts(data.fitness_history, data.km_history);
+    }
+
+    log(`Gen ${data.generation} | Fit ${data.best_fitness} | ${data.current_km} km`);
+
+    if (data.status === 'done') {
+      clearInterval(pollTimer);
+      setBadge('✓ Convergiu', 'done');
+      log('AG convergiu! Buscando resultado completo...', 'ok');
+      await fetchResultado();
+    } else if (data.status === 'cancelled') {
+      clearInterval(pollTimer);
+      setBadge('Cancelado', 'error');
+    }
+
+  } catch (e) {
+    log('Erro no polling: ' + e.message, 'warn');
+  }
+}
+
+// ── Busca resultado final ─────────────────────────────────────────────────
+async function fetchResultado() {
+  const res  = await fetch(`/resultado/${jobId}`);
+  const data = await res.json();
+
+  // Mapa
+  drawRoutes(data.routes, data.depot);
+
+  // Painel de rotas
+  renderRoutes(data.routes);
+
+  // Gráficos finais
+  updateCharts(data.fitness_history, data.km_history);
+
+  // Métricas finais
+  document.getElementById('m-gen').textContent = data.generation;
+  document.getElementById('m-fit').textContent = data.best_fitness;
+  document.getElementById('m-km').textContent  = data.total_km + ' km';
+  document.getElementById('progress-bar').style.width = '100%';
+
+  // Relatório LLM
+  if (data.llm_report) {
+    renderLLM(data.llm_report);
+    log('Relatório LLM gerado.', 'ok');
+  }
+
+  // Reabilita botão
+  document.getElementById('btn-otimizar').disabled = false;
+  log('Otimização concluída!', 'ok');
+}
+
+// ── Inicia otimização ─────────────────────────────────────────────────────
+async function iniciarOtimizacao() {
+  const btn = document.getElementById('btn-otimizar');
+  btn.disabled = true;
+  setBadge('⚙ Rodando...', 'running');
+  document.getElementById('routes-container').innerHTML =
+    '<p style="font-size:12px;color:var(--muted)">Aguardando convergência...</p>';
+  document.getElementById('llm-report').textContent = 'Será gerado ao convergir...';
+  document.getElementById('log').innerHTML = '';
+
+  // Reseta gráficos
+  chartFitness.data.labels = [];
+  chartFitness.data.datasets[0].data = [];
+  chartFitness.update('none');
+  chartKm.data.labels = [];
+  chartKm.data.datasets[0].data = [];
+  chartKm.update('none');
+
+  const payload = {
+    population_size: parseInt(document.getElementById('cfg-pop').value),
+    stagnation_stop: parseInt(document.getElementById('cfg-stag').value),
+    mutation_start:  parseFloat(document.getElementById('cfg-mut').value),
+  };
+
+  try {
+    const res  = await fetch('/otimizar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    jobId = data.job_id;
+    log(`Job iniciado: ${jobId}`, 'info');
+
+    // Polling a cada 2 segundos
+    pollTimer = setInterval(pollStatus, 2000);
+
+  } catch (e) {
+    log('Erro ao iniciar: ' + e.message, 'warn');
+    setBadge('Erro', 'error');
+    btn.disabled = false;
+  }
+}
+
+// ── Testes automatizados ──────────────────────────────────────────────────
+let testJobId    = null;
+let testPollTimer = null;
+
+async function executarTestes() {
+  const btn = document.getElementById('btn-testes');
+  btn.disabled = true;
+  btn.textContent = '⏳ Executando testes...';
+
+  document.getElementById('test-stats').style.display      = 'none';
+  document.getElementById('test-llm-report').style.display = 'none';
+  document.getElementById('test-status-msg').textContent   = '⚙ Iniciando execução dos testes...';
+
+  try {
+    const res  = await fetch('/testes/executar', { method: 'POST' });
+    const data = await res.json();
+    testJobId  = data.job_id;
+    document.getElementById('test-status-msg').textContent =
+      `Job ${testJobId} — executando 58 testes e chamando LLM...`;
+    testPollTimer = setInterval(pollTestes, 1500);
+  } catch (e) {
+    document.getElementById('test-status-msg').textContent = '❌ Erro: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = '▶ Executar Testes + Relatório LLM';
+  }
+}
+
+async function pollTestes() {
+  if (!testJobId) return;
+  try {
+    const res  = await fetch(`/testes/status/${testJobId}`);
+    const data = await res.json();
+
+    if (data.status === 'running') {
+      document.getElementById('test-status-msg').textContent =
+        '⚙ Aguardando... (gerando relatório LLM)';
+      return;
+    }
+
+    clearInterval(testPollTimer);
+    const btn = document.getElementById('btn-testes');
+    btn.disabled = false;
+    btn.textContent = '▶ Executar Testes + Relatório LLM';
+
+    if (data.status === 'error') {
+      document.getElementById('test-status-msg').textContent = '❌ Erro: ' + data.error;
+      return;
+    }
+
+    // Exibe stats
+    const s = data.stats;
+    document.getElementById('ts-total').textContent  = s.total;
+    document.getElementById('ts-passou').textContent = s.passou;
+    document.getElementById('ts-falhou').textContent = s.falhou;
+    document.getElementById('ts-taxa').textContent   = s.taxa + '%';
+    document.getElementById('test-progress-bar').style.width      = s.taxa + '%';
+    document.getElementById('test-progress-bar').style.background =
+      s.falhou === 0 ? 'var(--success)' : 'var(--danger)';
+    document.getElementById('test-stats').style.display = 'block';
+
+    document.getElementById('test-status-msg').textContent =
+      s.falhou === 0
+        ? `✅ Todos os ${s.total} testes passaram!`
+        : `⚠ ${s.falhou} falha(s) em ${s.total} testes`;
+
+    // Exibe relatório LLM
+    if (data.report) {
+      const el   = document.getElementById('test-llm-report');
+      el.innerHTML = data.report
+        .replace(/^## (.+)$/gm,
+          '<h2 style="font-size:13px;font-weight:700;color:var(--accent);margin:12px 0 4px">$1</h2>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      el.style.display = 'block';
+    }
+  } catch (e) {
+    clearInterval(testPollTimer);
+    document.getElementById('test-status-msg').textContent = '❌ Erro no polling: ' + e.message;
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  initCharts();
+  log('Sistema inicializado. Configure os parâmetros e clique em Otimizar.', 'info');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+================================================================================
+  GUIA DE DEPLOY — VRP Hospitalar RMSP
+  Azure Container Apps + Docker
+================================================================================
+
+PRÉ-REQUISITOS
+──────────────
+1. Docker Desktop instalado e RODANDO
+   https://www.docker.com/products/docker-desktop/
+
+2. Azure CLI instalado
+   https://aka.ms/installazurecliwindows
+
+3. Conta Azure com créditos ativos
+   https://portal.azure.com
+
+4. Arquivo .env na raiz do projeto com:
+   OPENAI_API_KEY=sk-proj-sua-chave-aqui
+
+
+================================================================================
+  DEPLOY INICIAL (primeira vez)
+================================================================================
+
+PASSO 1 — Liberar execução de scripts PowerShell
+─────────────────────────────────────────────────
+  Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+
+PASSO 2 — Login no Azure
+─────────────────────────
+  az login --tenant SEU_TENANT_ID
+
+  Se pedir MFA, complete no navegador.
+  Se der erro de assinatura:
+  az login --tenant SEU_TENANT_ID --use-device-code
+
+  Tenant usado neste projeto: e8d46fa3-5b6a-4b4d-8049-d22f2b9f8aac
+
+
+PASSO 3 — Registrar namespaces Azure (só na primeira vez)
+──────────────────────────────────────────────────────────
+  az provider register --namespace Microsoft.ContainerRegistry --wait
+  az provider register --namespace Microsoft.App --wait
+  az provider register --namespace Microsoft.OperationalInsights --wait
+
+  Aguardar cada comando completar (1-2 minutos cada).
+
+
+PASSO 4 — Criar grupo de recursos
+───────────────────────────────────
+  az group create --name vrp-rmsp-rg --location brazilsouth
+
+
+PASSO 5 — Criar Container Registry
+────────────────────────────────────
+  az acr create `
+      --resource-group vrp-rmsp-rg `
+      --name vrprmspcr `
+      --sku Basic `
+      --admin-enabled true
+
+
+PASSO 6 — Build da imagem Docker
+──────────────────────────────────
+  (dentro da pasta do projeto)
+
+  docker build -t vrprmspcr.azurecr.io/vrp-rmsp:latest .
+
+
+PASSO 7 — Login no registry e Push da imagem
+─────────────────────────────────────────────
+  docker login vrprmspcr.azurecr.io `
+      --username vrprmspcr `
+      --password (az acr credential show --name vrprmspcr --query "passwords[0].value" -o tsv)
+
+  docker push vrprmspcr.azurecr.io/vrp-rmsp:latest
+
+  Verificar se chegou:
+  az acr repository list --name vrprmspcr -o table
+
+
+PASSO 8 — Instalar extensão Container Apps
+────────────────────────────────────────────
+  az extension add --name containerapp --upgrade --output none 2>&1 | Out-Null
+
+
+PASSO 9 — Criar ambiente Container Apps
+─────────────────────────────────────────
+  az containerapp env create `
+      --name vrp-rmsp-env `
+      --resource-group vrp-rmsp-rg `
+      --location brazilsouth
+
+
+PASSO 10 — Deploy do Container App
+────────────────────────────────────
+  az containerapp create `
+      --name vrp-rmsp `
+      --resource-group vrp-rmsp-rg `
+      --environment vrp-rmsp-env `
+      --image vrprmspcr.azurecr.io/vrp-rmsp:latest `
+      --registry-server vrprmspcr.azurecr.io `
+      --registry-username vrprmspcr `
+      --registry-password (az acr credential show --name vrprmspcr --query "passwords[0].value" -o tsv) `
+      --target-port 8000 `
+      --ingress external `
+      --min-replicas 1 `
+      --cpu 1.0 `
+      --memory 2.0Gi
+
+  Resultado esperado:
+  provisioningState: Succeeded
+  runningStatus: Running
+
+
+PASSO 11 — Injetar a chave OpenAI
+───────────────────────────────────
+  az containerapp update `
+      --name vrp-rmsp `
+      --resource-group vrp-rmsp-rg `
+      --set-env-vars "OPENAI_API_KEY=sk-proj-sua-chave-aqui"
+
+
+PASSO 12 — Obter a URL pública
+────────────────────────────────
+  az containerapp show `
+      --name vrp-rmsp `
+      --resource-group vrp-rmsp-rg `
+      --query "properties.configuration.ingress.fqdn" -o tsv
+
+  URL deste projeto:
+  https://vrp-rmsp.nicerock-a43e5f49.brazilsouth.azurecontainerapps.io
+
+
+================================================================================
+  ATUALIZAÇÃO (após mudanças no código)
+================================================================================
+
+  docker build -t vrprmspcr.azurecr.io/vrp-rmsp:latest .
+  docker push vrprmspcr.azurecr.io/vrp-rmsp:latest
+  az containerapp update `
+      --name vrp-rmsp `
+      --resource-group vrp-rmsp-rg `
+      --image vrprmspcr.azurecr.io/vrp-rmsp:latest
+
+
+================================================================================
+  COMANDOS ÚTEIS
+================================================================================
+
+Ver status da aplicação:
+  az containerapp show `
+      --name vrp-rmsp `
+      --resource-group vrp-rmsp-rg `
+      --query "{URL:properties.configuration.ingress.fqdn, Status:properties.provisioningState}" `
+      -o table
+
+Ver revisões:
+  az containerapp revision list `
+      --name vrp-rmsp `
+      --resource-group vrp-rmsp-rg `
+      -o table
+
+Ver variáveis de ambiente configuradas:
+  az containerapp show `
+      --name vrp-rmsp `
+      --resource-group vrp-rmsp-rg `
+      --query "properties.template.containers[0].env"
+
+Verificar imagens no registry:
+  az acr repository list --name vrprmspcr -o table
+
+Deletar e recriar o container app (sem apagar registry):
+  az containerapp delete --name vrp-rmsp --resource-group vrp-rmsp-rg --yes
+
+
+================================================================================
+  SOLUÇÃO DE PROBLEMAS COMUNS
+================================================================================
+
+ERRO: "não está assinado digitalmente"
+  → Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+  → Se não funcionar: powershell -ExecutionPolicy Bypass -File .\deploy_azure.ps1
+
+ERRO: "MissingSubscriptionRegistration"
+  → az provider register --namespace Microsoft.ContainerRegistry --wait
+
+ERRO: "MANIFEST_UNKNOWN: manifest tagged by latest is not found"
+  → O push não foi concluído. Refaça os passos 6 e 7.
+
+ERRO: Container app com status "Failed" sem revisões
+  → O container crashou ao iniciar. Verifique se todos os arquivos
+    importados pelo main.py estão no Dockerfile (não no .dockerignore).
+
+ERRO: "stream timeout" na página web
+  → O AG está demorando mais que o timeout do Azure (240s).
+  → Reduza os parâmetros: população 50, estagnação 150.
+
+AVISO: "OPENAI_API_KEY não configurada"
+  → Execute o passo 11 para injetar a chave diretamente no Azure.
+
+AVISO: "32-bit Python on a 64-bit Windows"
+  → Apenas aviso do Azure CLI, não afeta o funcionamento. Ignore.
+
+
+================================================================================
+  REFERÊNCIAS DO PROJETO
+================================================================================
+
+  URL pública:   https://vrp-rmsp.nicerock-a43e5f49.brazilsouth.azurecontainerapps.io
+  Swagger UI:    https://vrp-rmsp.nicerock-a43e5f49.brazilsouth.azurecontainerapps.io/docs
+  Resource Group: vrp-rmsp-rg
+  Registry:       vrprmspcr.azurecr.io
+  Container App:  vrp-rmsp
+  Ambiente:       vrp-rmsp-env
+  Região:         Brazil South (São Paulo)
+  Tenant ID:      e8d46fa3-5b6a-4b4d-8049-d22f2b9f8aac
+
+================================================================================

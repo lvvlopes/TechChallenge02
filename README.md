@@ -4,7 +4,10 @@ Sistema de otimização de rotas para distribuição de medicamentos e insumos h
 na Região Metropolitana de São Paulo, desenvolvido como Tech Challenge Fase 2 — FIAP Pós-Tech.
 
 O sistema resolve o **Problema de Roteamento de Veículos (VRP)** usando um **Algoritmo Genético**,
-com visualização em tempo real das rotas sobre o mapa geográfico real da Grande SP (OpenStreetMap).
+com duas formas de execução: interface desktop (Pygame) e aplicação web (FastAPI + Leaflet.js),
+com suporte a deploy em nuvem via **Azure Container Apps**.
+
+🌐 **Demo online:** https://vrp-rmsp.nicerock-a43e5f49.brazilsouth.azurecontainerapps.io
 
 ---
 
@@ -18,9 +21,12 @@ com visualização em tempo real das rotas sobre o mapa geográfico real da Gran
 - [Funcionamento do Algoritmo Genético](#funcionamento-do-algoritmo-genético)
 - [Restrições Implementadas](#restrições-implementadas)
 - [Prioridades de Entrega](#prioridades-de-entrega)
-- [Visualização](#visualização)
+- [Visualização Desktop](#visualização-desktop)
+- [Interface Web](#interface-web)
+- [API REST](#api-rest)
 - [Integração com LLM](#integração-com-llm)
 - [Testes Automatizados](#testes-automatizados)
+- [Deploy no Azure](#deploy-no-azure)
 - [Configurações Ajustáveis](#configurações-ajustáveis)
 
 ---
@@ -42,11 +48,14 @@ com visualização em tempo real das rotas sobre o mapa geográfico real da Gran
 | Autonomia limitada dos veículos | `domain/models.py` → `Vehicle.max_distance` |
 | Múltiplos veículos (VRP) | `vrp/decoder.py` → `VRPDecoder.decode()` |
 | Visualização das rotas em mapa real (OSM) | `draw_functions.py`, `map_background.py` |
+| Interface web com mapa Leaflet interativo | `api/templates/index.html` |
+| API REST para execução headless do AG | `api/main.py` |
 | Integração com LLM (relatórios, instruções) | `llm_report.py` → `generate_report()` |
 | Testes automatizados (unitários e de restrição) | `tests/test_*.py` — 58 testes, 100% aprovados |
 | Relatório gerencial de testes via LLM | `generate_test_report.py` |
 | Refinamento local (2-opt) | `core/fitness.py` → `two_opt()` |
 | Dataset real (39 cidades RMSP) | `benchmark_greater_sp.py` |
+| Deploy em nuvem (Azure Container Apps) | `Dockerfile`, `deploy_azure.ps1` |
 
 ---
 
@@ -55,7 +64,7 @@ com visualização em tempo real das rotas sobre o mapa geográfico real da Gran
 ```
 genetic_algorithm_tsp/
 │
-├── tsp.py                    # Entry point — loop principal do AG e visualização
+├── tsp.py                    # Entry point desktop — loop AG + visualização Pygame
 ├── genetic_algorithm.py      # Operadores genéticos: crossover OX, mutação, ordenação
 ├── draw_functions.py         # Visualização: gráficos fitness/KM e rotas no mapa
 ├── benchmark_greater_sp.py   # Dataset: 39 municípios da RMSP com lat/lon
@@ -63,6 +72,16 @@ genetic_algorithm_tsp/
 ├── generate_test_report.py   # Executa testes + gera relatório gerencial via LLM
 ├── map_background.py         # Download e cache de tiles OpenStreetMap
 ├── environment.yml           # Ambiente Conda com todas as dependências
+├── requirements_api.txt      # Dependências da API web
+├── Dockerfile                # Imagem Docker para deploy em nuvem
+├── deploy_azure.ps1          # Script de deploy no Azure (primeira vez)
+├── update_azure.ps1          # Script de atualização no Azure
+│
+├── api/
+│   ├── main.py               # FastAPI — endpoints REST + serve a página web
+│   ├── runner.py             # AG headless (sem Pygame) para execução via API
+│   └── templates/
+│       └── index.html        # Interface web: Leaflet.js + Chart.js + polling
 │
 ├── core/
 │   ├── algorithm.py          # Geração de população inicial (aleatória, NN, convex)
@@ -81,62 +100,25 @@ genetic_algorithm_tsp/
     └── decoder.py            # Decodifica cromossomo → rotas respeitando restrições
 ```
 
-### Fluxo de dados
-
-```
-benchmark_greater_sp.py
-        │  39 cidades (lat/lon)
-        ▼
-    tsp.py
-        │  Cria VRPProblem (depot + delivery_points + vehicles)
-        │  Define prioridades fixas via CITY_PRIORITY
-        ▼
-core/algorithm.py
-        │  População inicial híbrida
-        │  (30% aleatório + 30% nearest neighbour + 40% convex-like)
-        ▼
-    [loop AG]
-        │
-        ├─► vrp/decoder.py
-        │       _sort_by_priority() → garante críticos primeiro
-        │       decode()            → List[Route]
-        │
-        ├─► core/fitness.py
-        │       calculo_fitness()   → score normalizado
-        │       two_opt()           → refinamento local no melhor
-        │
-        ├─► genetic_algorithm.py
-        │       sort_population(), tournament_selection()
-        │       order_crossover(), mutate()
-        │
-        └─► draw_functions.py + map_background.py
-                Renderiza mapa OSM + rotas coloridas + gráficos
-```
-
 ---
 
 ## Pré-requisitos
 
 - Python **3.9** ou superior
-- [Anaconda](https://www.anaconda.com/download) ou [Miniconda](https://docs.conda.io/en/latest/miniconda.html) (recomendado)
+- [Anaconda](https://www.anaconda.com/download) ou [Miniconda](https://docs.conda.io/en/latest/miniconda.html) (recomendado para modo desktop)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (necessário apenas para deploy no Azure)
+- [Azure CLI](https://aka.ms/installazurecliwindows) (necessário apenas para deploy no Azure)
 
 ---
 
 ## Instalação
 
-### Opção 1 — Conda (recomendado)
+### Opção 1 — Conda (recomendado para modo desktop)
 
 ```bash
-# 1. Clone ou extraia o projeto
 cd genetic_algorithm_tsp
-
-# 2. Crie o ambiente com todas as dependências
 conda env create --file environment.yml
-
-# 3. Ative o ambiente
 conda activate fiap_tsp
-
-# 4. Instale dependências adicionais (mapa de fundo)
 pip install requests pillow
 ```
 
@@ -153,51 +135,59 @@ python -m venv .venv
 python -m venv .venv
 source .venv/bin/activate
 
-# Instale as dependências
 pip install pygame matplotlib numpy requests pillow
 ```
 
-### Dependências principais
+### Para o modo web (API)
 
-| Pacote | Versão mínima | Uso |
-|---|---|---|
-| `pygame` | 2.0 | Janela de visualização e renderização |
-| `matplotlib` | 3.5 | Gráficos de fitness e distância KM |
-| `numpy` | 1.21 | Operações numéricas auxiliares |
-| `requests` | 2.27 | Download de tiles OSM |
-| `Pillow` | 9.0 | Processamento de imagens dos tiles |
+```bash
+pip install fastapi uvicorn
+```
+
+### Configuração da chave OpenAI
+
+```bash
+cp .env.example .env
+# Edite o .env e adicione:
+# OPENAI_API_KEY=sk-sua-chave-aqui
+```
 
 ---
 
 ## Como Executar
 
+### Modo Desktop (Pygame)
+
 ```bash
-# Certifique-se de estar dentro da pasta do projeto com o ambiente ativo
 cd genetic_algorithm_tsp
 python tsp.py
 ```
 
-**Na primeira execução**, o sistema baixa automaticamente os tiles do mapa
-OpenStreetMap para a pasta `.map_cache/`. Isso pode levar alguns segundos.
-As execuções seguintes carregam do cache e são instantâneas.
+Na primeira execução, o sistema baixa os tiles do mapa OpenStreetMap para `.map_cache/`.
 
-**Controles durante a execução:**
-- `Q` ou fechar a janela → encerra o algoritmo
+**Controles:**
+- `Q` ou fechar a janela → encerra
 - `L` → gera relatório LLM da solução atual (salvo em `relatorios/`)
-- O sistema encerra automaticamente após **400 gerações sem melhoria no melhor fitness global**
+- O sistema encerra automaticamente após **400 gerações sem melhoria**
 
-**Console durante a execução:**
+### Modo Web (FastAPI)
+
+```bash
+cd genetic_algorithm_tsp
+uvicorn api.main:app --reload --port 8000
 ```
-Gen   45 | Fitness: 0.6353 | KM: 666.5 | Melhor: 0.6353 (12 sem melhoria)
-[restart] Reinicializando 50 indivíduos para escapar do ótimo local...
-Gen   46 | Fitness: 0.6201 | KM: 648.2 | Melhor: 0.6201 (0 sem melhoria)
-```
+
+Abra no navegador: **http://localhost:8000**
+
+A interface permite configurar parâmetros via sliders, acompanhar a evolução em tempo real,
+visualizar as rotas no mapa interativo, executar testes e gerar relatórios LLM.
 
 ---
 
 ## Funcionamento do Algoritmo Genético
 
 ### Representação
+
 Cada **cromossomo** é uma permutação de IDs dos pontos de entrega.
 O `VRPDecoder` converte essa permutação em rotas reais, sempre
 colocando cidades críticas primeiro (`_sort_by_priority()`).
@@ -221,13 +211,15 @@ colocando cidades críticas primeiro (`_sort_by_priority()`).
 | Refinamento | 2-opt (5 iter.) | Aplicado ao melhor indivíduo de cada geração |
 
 ### Mecanismo anti-estagnação
+
 Quando o melhor fitness global não melhora por **160 gerações consecutivas**
-(40% do limite), metade da população é substituída por indivíduos aleatórios
-novos — forçando exploração de novas regiões do espaço de busca.
+(40% do limite), metade da população é substituída por indivíduos aleatórios —
+forçando exploração de novas regiões do espaço de busca.
 
 ### Critério de parada
+
 O algoritmo encerra quando o **melhor fitness global** não melhora por
-**400 gerações consecutivas**.
+**400 gerações consecutivas** (modo desktop) ou pelo valor configurado nos sliders (modo web).
 
 ---
 
@@ -235,7 +227,7 @@ O algoritmo encerra quando o **melhor fitness global** não melhora por
 
 | Restrição | Como funciona |
 |---|---|
-| **Capacidade** | Quando `carga_atual + demand > vehicle.capacity`, fecha a rota atual e avança para o próximo veículo |
+| **Capacidade** | Quando `carga_atual + demand > vehicle.capacity`, fecha a rota e avança para o próximo veículo |
 | **Autonomia** | Quando `distância + próximo + retorno_depot > max_distance`, fecha a rota |
 | **Múltiplos veículos** | O decoder avança sequencialmente pela frota ao fechar cada rota |
 | **Prioridade garantida** | `_sort_by_priority()` reordena o cromossomo antes de decodificar |
@@ -243,167 +235,218 @@ O algoritmo encerra quando o **melhor fitness global** não melhora por
 
 ### Configuração dos veículos
 
-| Veículo | Capacidade | Autonomia | Perfil |
-|---|---|---|---|
-| V1 | 150 unid. | 5000 px | Leve — atendimento local |
-| V2 | 150 unid. | 5000 px | Leve — atendimento local |
-| V3 | 500 unid. | 8000 px | Pesado — distribuição regional |
+| Veículo | Capacidade | Perfil |
+|---|---|---|
+| V1 | 150 unid. | Leve — atendimento local |
+| V2 | 150 unid. | Leve — atendimento local |
+| V3 | 500 unid. | Pesado — distribuição regional |
 
 ---
 
 ## Prioridades de Entrega
 
 As prioridades são **fixas por cidade**, definidas no dicionário `CITY_PRIORITY` em `tsp.py`.
-O decoder **garante estruturalmente** que cidades críticas sejam sempre visitadas antes
-das de alta prioridade, que por sua vez são visitadas antes das normais.
+O decoder **garante estruturalmente** que cidades críticas sejam sempre visitadas primeiro.
 
 | Cidade | Prioridade | Nível |
 |---|---|---|
-| São Paulo | 3 | Crítica |
-| Guarulhos | 3 | Crítica |
-| Santo André | 3 | Crítica |
-| Suzano | 3 | Crítica |
-| Mogi das Cruzes | 2 | Alta |
-| Mauá | 2 | Alta |
+| São Paulo | 3 | Crítica ⚠ |
+| Guarulhos | 3 | Crítica ⚠ |
+| Santo André | 3 | Crítica ⚠ |
+| Suzano | 3 | Crítica ⚠ |
+| Mogi das Cruzes | 2 | Alta ⚡ |
+| Mauá | 2 | Alta ⚡ |
 | Demais 32 cidades | 1 | Normal |
-
-Para alterar as prioridades, edite o dicionário `CITY_PRIORITY` em `tsp.py`.
 
 ---
 
-## Visualização
+## Visualização Desktop
 
 A janela (1500×800px) é dividida em duas áreas:
 
-**Lado esquerdo (450px) — Painéis de monitoramento:**
+**Lado esquerdo — Painéis de monitoramento:**
 - Gráfico superior: evolução do **fitness normalizado** por geração
 - Gráfico inferior: evolução da **distância total em KM reais** (fórmula Haversine)
-  com o valor atual anotado e legenda de cores por veículo
 
 **Lado direito — Mapa da RMSP:**
-- Fundo: tiles reais do OpenStreetMap (cacheados em `.map_cache/`)
+- Tiles reais do OpenStreetMap (cacheados em `.map_cache/`)
 - Rotas coloridas por veículo: vermelho=V1, azul=V2, verde=V3
-- Pontos com círculo duplo na cor do veículo
-- Labels com fundo semitransparente: `Nº°VX NomeCidade`
-- Depósito (Barueri) marcado em verde com círculo maior
-- Margem de 60px em todas as bordas — cidades nunca cortadas
+- Labels com fundo semitransparente
+- Depósito (Barueri) marcado em verde
 
+---
+
+## Interface Web
+
+A interface web roda em `http://localhost:8000` e oferece:
+
+**Sidebar esquerda:**
+- Sliders para configurar população, estagnação e taxa de mutação
+- Barra de progresso e métricas em tempo real (geração, fitness, KM, estagnação)
+- Gráficos de evolução do fitness e da distância atualizados ao vivo
+- Aba **Rotas**: painel detalhado com paradas, carga e distância por veículo
+- Aba **Log**: console ao vivo com o progresso geração a geração
+- Aba **Relatório LLM**: relatório operacional gerado ao convergir
+- Aba **🧪 Testes**: executa os 58 testes + gera relatório gerencial via LLM
+
+**Mapa interativo (Leaflet.js):**
+- Tiles OpenStreetMap reais
+- Rotas coloridas por veículo desenhadas ao convergir
+- Markers com tooltip: nome da cidade, demanda e prioridade
+- Zoom automático para enquadrar todas as rotas
+
+---
+
+## API REST
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| `GET` | `/` | Página web principal |
+| `POST` | `/otimizar` | Inicia o AG em background — retorna `job_id` |
+| `GET` | `/status/{job_id}` | Progresso em tempo real (polling) |
+| `GET` | `/resultado/{job_id}` | Resultado completo: rotas + relatório LLM |
+| `GET` | `/jobs` | Lista todos os jobs |
+| `DELETE` | `/jobs/{job_id}` | Cancela job em andamento |
+| `POST` | `/testes/executar` | Executa os 58 testes + gera relatório LLM |
+| `GET` | `/testes/status/{job_id}` | Status do job de testes |
+| `GET` | `/health` | Healthcheck |
+| `GET` | `/docs` | Swagger UI interativo |
+
+```bash
+# Exemplo: inicia otimização
+curl -X POST http://localhost:8000/otimizar \
+  -H "Content-Type: application/json" \
+  -d '{"population_size": 50, "stagnation_stop": 150}'
+```
 
 ---
 
 ## Integração com LLM
 
-O sistema integra com **OpenAI GPT-4o-mini** para geração automática de relatórios
-operacionais ao final de cada execução do AG.
+O sistema integra com **OpenAI GPT-4o-mini** para geração de relatórios operacionais.
 
-### Configuração da chave de API
+### Quando é gerado
 
-```bash
-# Copie o arquivo de exemplo
-cp .env.example .env
-
-# Edite e coloque sua chave (obtenha em https://platform.openai.com/api-keys)
-OPENAI_API_KEY=sk-sua-chave-aqui
-```
-
-### Como ativar
-
-| Quando | Como |
+| Modo | Quando |
 |---|---|
-| **Automático** | Ao convergir, o relatório é gerado e salvo em `relatorios/` |
-| **Manual** | Pressione **`L`** durante a execução para gerar a qualquer momento |
+| Desktop | Automático ao convergir + tecla `L` |
+| Web — Rotas | Automático ao convergir (aba Relatório LLM) |
+| Web — Testes | Ao clicar em "Executar Testes" na aba 🧪 Testes |
 
-### O que é gerado
+### Relatório de rotas (4 seções)
 
-O LLM recebe o contexto completo da operação e gera 4 seções:
+1. **Instruções por Motorista** — sequência, quantidades e horários estimados (partindo às 08h)
+2. **Relatório de Eficiência** — distância por veículo, taxa de utilização de capacidade
+3. **Alertas de Prioridade Crítica** — confirmação das cidades críticas nas primeiras posições
+4. **Resumo Executivo** — métricas principais e recomendações para o gestor
 
-**1. Instruções por Motorista** — sequência de cidades, quantidades, horários estimados (partindo às 08h), destaque para entregas críticas com ⚠
+### Relatório de testes (5 seções)
 
-**2. Relatório de Eficiência** — distância por veículo, taxa de utilização de capacidade, comparativo entre veículos
+1. Visão geral e importância dos testes
+2. Estratégia de testes — módulos priorizados e justificativa
+3. Regras de negócio validadas — explicação gerencial
+4. Resultados obtidos — análise quantitativa
+5. Conclusão e recomendações de evolução
 
-**3. Alertas de Prioridade Crítica** — confirmação de que São Paulo, Guarulhos, Santo André e Suzano estão nas primeiras posições, horários estimados de chegada
-
-**4. Resumo Executivo** — 5 linhas para o gestor com métricas principais e recomendações operacionais
-
-### Sem chave configurada
-
-Se `OPENAI_API_KEY` não estiver definida, o sistema exibe o contexto estruturado
-da operação (sem chamada LLM) e salva normalmente em `relatorios/`.
-
-### Relatórios salvos
-
-Cada execução salva um arquivo em `relatorios/relatorio_YYYYMMDD_HHMMSS.txt`.
-
+Relatórios salvos em `relatorios/relatorio_YYYYMMDD_HHMMSS.txt`.
 
 ---
 
 ## Testes Automatizados
 
-O projeto conta com **58 testes automatizados** cobrindo os módulos críticos do sistema.
-
-### Executar os testes
-
 ```bash
-# Executa todos os testes com saída detalhada
+# Executa todos os 58 testes
 python -m unittest discover -s tests -v
-```
+# Resultado: Ran 58 tests in 0.007s — OK
 
-Resultado esperado:
-```
-Ran 58 tests in 0.007s
-OK
-```
-
-### Cobertura dos testes
-
-| Arquivo | Classe | Testes | O que cobre |
-|---|---|---|---|
-| `test_genetic_algorithm.py` | `TestOrderCrossover` | 8 | Validade do crossover OX — permutação, ausência de duplicatas, preservação dos genes |
-| `test_genetic_algorithm.py` | `TestMutate` | 8 | Mutação adjacent swap — integridade, imutabilidade do original, comportamento probabilístico |
-| `test_genetic_algorithm.py` | `TestSortPopulation` | 6 | Ordenação por fitness — corretude, acoplamento cromossomo-fitness |
-| `test_decoder.py` | `TestSortByPriority` | 6 | Ordem crítica > alta > normal — preservação de genes, ordem relativa |
-| `test_decoder.py` | `TestDecoderIntegridade` | 3 | Todos os pontos entregues, sem duplicatas, tipo de retorno |
-| `test_decoder.py` | `TestDecoderCapacidade` | 3 | Carga nunca excede capacidade, rota fechada ao atingir limite |
-| `test_decoder.py` | `TestDecoderAutonomia` | 2 | Múltiplas rotas com autonomia curta, entrega completa |
-| `test_decoder.py` | `TestDecoderMultiplosVeiculos` | 3 | Uso de múltiplos veículos, IDs válidos, frota vazia |
-| `test_fitness.py` | `TestCalculoFitness` | 7 | Retorno float finito positivo, casos extremos |
-| `test_fitness.py` | `TestRouteDistance` | 5 | Distância euclidiana — Pitágoras, simetria, ponto único |
-| `test_fitness.py` | `TestTwoOpt` | 7 | Melhoria sem piora, integridade da permutação, casos extremos |
-
-### Relatório gerencial de testes via LLM
-
-O script `generate_test_report.py` executa os testes, captura os resultados e usa
-o GPT-4o-mini para gerar um relatório gerencial explicando as regras validadas
-e os resultados obtidos em linguagem acessível.
-
-```bash
+# Gera relatório gerencial via LLM
 python generate_test_report.py
 ```
 
-O relatório é salvo em `relatorios/relatorio_testes_YYYYMMDD_HHMMSS.txt` e contém:
+| Arquivo | Testes | O que cobre |
+|---|---|---|
+| `test_genetic_algorithm.py` | 22 | Crossover OX, mutação adjacent swap, ordenação por fitness |
+| `test_decoder.py` | 19 | Prioridade crítica > alta > normal, capacidade, autonomia, múltiplos veículos |
+| `test_fitness.py` | 17 | Fitness multiobjetivo, distância euclidiana, refinamento 2-opt |
 
-- **Visão geral** do projeto e da importância dos testes
-- **Estratégia de testes** — quais módulos foram priorizados e por quê
-- **Regras de negócio validadas** — explicação gerencial de cada conjunto de testes
-- **Resultados obtidos** — análise dos números, tempo de execução e qualidade
-- **Conclusão e recomendações** para evolução futura da suite
+---
+
+## Deploy no Azure
+
+### Pré-requisitos
+
+- Docker Desktop instalado e rodando
+- Azure CLI instalado
+- Conta Azure com créditos ativos
+
+### Deploy inicial
+
+```powershell
+# Libera execução de scripts
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+# Registra namespaces (só na primeira vez)
+az provider register --namespace Microsoft.ContainerRegistry --wait
+az provider register --namespace Microsoft.App --wait
+
+# Login
+az login
+
+# Build e push da imagem
+docker build -t vrprmspcr.azurecr.io/vrp-rmsp:latest .
+docker push vrprmspcr.azurecr.io/vrp-rmsp:latest
+
+# Deploy
+az containerapp create `
+    --name vrp-rmsp `
+    --resource-group vrp-rmsp-rg `
+    --environment vrp-rmsp-env `
+    --image vrprmspcr.azurecr.io/vrp-rmsp:latest `
+    --registry-server vrprmspcr.azurecr.io `
+    --registry-username vrprmspcr `
+    --registry-password (az acr credential show --name vrprmspcr --query "passwords[0].value" -o tsv) `
+    --target-port 8000 --ingress external --min-replicas 1 --cpu 1.0 --memory 2.0Gi
+
+# Injeta a chave OpenAI
+az containerapp update `
+    --name vrp-rmsp `
+    --resource-group vrp-rmsp-rg `
+    --set-env-vars "OPENAI_API_KEY=sk-sua-chave-aqui"
+```
+
+### Atualização após mudanças no código
+
+```powershell
+docker build -t vrprmspcr.azurecr.io/vrp-rmsp:latest .
+docker push vrprmspcr.azurecr.io/vrp-rmsp:latest
+az containerapp update --name vrp-rmsp --resource-group vrp-rmsp-rg --image vrprmspcr.azurecr.io/vrp-rmsp:latest
+```
+
+### Recursos no Azure
+
+| Recurso | Nome | Região |
+|---|---|---|
+| Resource Group | `vrp-rmsp-rg` | Brazil South |
+| Container Registry | `vrprmspcr` | Brazil South |
+| Container Apps Environment | `vrp-rmsp-env` | Brazil South |
+| Container App | `vrp-rmsp` | Brazil South |
+
+> Para o guia completo com solução de problemas, consulte `deploy_azure_guia.txt`.
 
 ---
 
 ## Configurações Ajustáveis
 
-Todas as configurações principais estão no topo de `tsp.py`:
+Parâmetros em `tsp.py` (modo desktop) ou via sliders na interface web:
 
 ```python
-# Algoritmo Genético
 POPULATION_SIZE = 100    # tamanho da população
-TOURNAMENT_SIZE = 3      # candidatos por torneio (menor = mais diversidade)
+TOURNAMENT_SIZE = 3      # candidatos por torneio
 ELITE_SIZE      = 5      # indivíduos preservados por elitismo
 STAGNATION_STOP = 400    # gerações sem melhoria para encerrar
 MUTATION_START  = 0.30   # taxa de mutação inicial
 MUTATION_MIN    = 0.05   # taxa de mutação mínima
 
-# Prioridades por cidade
 CITY_PRIORITY = {
     "São Paulo":       3,   # crítica
     "Guarulhos":       3,   # crítica
@@ -411,16 +454,10 @@ CITY_PRIORITY = {
     "Suzano":          3,   # crítica
     "Mogi das Cruzes": 2,   # alta
     "Mauá":            2,   # alta
-    # demais cidades → 1 (normal)
 }
-
-# Veículos
-Vehicle(id=1, capacity=150, max_distance=5000)
-Vehicle(id=2, capacity=150, max_distance=5000)
-Vehicle(id=3, capacity=500, max_distance=8000)
 ```
 
-Os pesos da função fitness podem ser ajustados em `core/fitness.py`:
+Pesos da função fitness em `core/fitness.py`:
 
 ```python
 w_distance = 0.55   # peso da distância total
@@ -428,3 +465,7 @@ w_priority = 0.15   # peso da penalidade de prioridade
 w_balance  = 0.05   # peso do balanceamento de carga
 w_routes   = 0.25   # peso da penalidade de fragmentação
 ```
+
+---
+
+*FIAP Pós-Tech — Inteligência Artificial para Devs — Fase 2 — Tech Challenge*

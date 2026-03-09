@@ -1,0 +1,12 @@
+# Dependências da API Web
+# Instale com: pip install -r requirements_api.txt
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+
+# Já usadas pelo projeto base
+pygame>=2.0.0
+matplotlib>=3.5.0
+numpy>=1.21.0
+requests>=2.27.0
+Pillow>=9.0.0

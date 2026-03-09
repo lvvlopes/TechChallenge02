@@ -1,0 +1,94 @@
+## 1. INSTRUÇÕES POR MOTORISTA
+
+### Veículo 1
+1. ⚠ Santo André | 5 unid. | Chegada estimada: 08:00 + 6.4 h = 14:24
+2. ⚠ São Paulo | 16 unid. | Chegada estimada: 14:24 + 6.4 h = 20:48
+3. ⚠ Guarulhos | 17 unid. | Chegada estimada: 20:48 + 6.4 h = 03:12 (do dia seguinte)
+4. ⚠ Suzano | 18 unid. | Chegada estimada: 03:12 + 6.4 h = 09:36 (do dia seguinte)
+5. ! Mauá | 17 unid. | Chegada estimada: 09:36 + 6.4 h = 16:00 (do dia seguinte)
+6. ! Mogi das Cruzes | 17 unid. | Chegada estimada: 16:00 + 6.4 h = 22:24 (do dia seguinte)
+7. Ribeirão Pires | 11 unid. | Chegada estimada: 22:24 + 6.4 h = 04:48 (do dia seguinte)
+8. Rio Grande da Serra | 5 unid. | Chegada estimada: 04:48 + 6.4 h = 11:12 (do dia seguinte)
+9. São Caetano do Sul | 6 unid. | Chegada estimada: 11:12 + 6.4 h = 17:36 (do dia seguinte)
+10. Diadema | 5 unid. | Chegada estimada: 17:36 + 6.4 h = 00:00 (do dia seguinte)
+11. São Bernardo do Campo | 19 unid. | Chegada estimada: 00:00 + 6.4 h = 06:24 (do dia seguinte)
+
+**Instrução de retorno ao depósito:** Após a última entrega, retornar ao depósito em Barueri.
+
+### Veículo 2
+1. Carapicuíba | 15 unid. | Chegada estimada: 08:00 + 3.4 h = 11:24
+2. Osasco | 11 unid. | Chegada estimada: 11:24 + 3.4 h = 14:48
+3. Taboão da Serra | 13 unid. | Chegada estimada: 14:48 + 3.4 h = 18:12
+4. Embu das Artes | 6 unid. | Chegada estimada: 18:12 + 3.4 h = 21:36
+5. Itapecerica da Serra | 19 unid. | Chegada estimada: 21:36 + 3.4 h = 01:00 (do dia seguinte)
+6. Embu-Guaçu | 19 unid. | Chegada estimada: 01:00 + 3.4 h = 04:24 (do dia seguinte)
+7. São Lourenço da Serra | 8 unid. | Chegada estimada: 04:24 + 3.4 h = 07:48 (do dia seguinte)
+8. Juquitiba | 8 unid. | Chegada estimada: 07:48 + 3.4 h = 11:12 (do dia seguinte)
+9. Vargem Grande Paulista | 19 unid. | Chegada estimada: 11:12 + 3.4 h = 14:36 (do dia seguinte)
+10. Cotia | 19 unid. | Chegada estimada: 14:36 + 3.4 h = 18:00 (do dia seguinte)
+11. Itapevi | 8 unid. | Chegada estimada: 18:00 + 3.4 h = 21:24 (do dia seguinte)
+
+**Instrução de retorno ao depósito:** Após a última entrega, retornar ao depósito em Barueri.
+
+### Veículo 3
+1. Jandira | 8 unid. | Chegada estimada: 08:00 + 7.1 h = 15:06
+2. Santana de Parnaíba | 14 unid. | Chegada estimada: 15:06 + 7.1 h = 22:12
+3. Pirapora do Bom Jesus | 9 unid. | Chegada estimada: 22:12 + 7.1 h = 05:18 (do dia seguinte)
+4. Cajamar | 7 unid. | Chegada estimada: 05:18 + 7.1 h = 12:24 (do dia seguinte)
+5. Caieiras | 12 unid. | Chegada estimada: 12:24 + 7.1 h = 19:30 (do dia seguinte)
+6. Franco da Rocha | 9 unid. | Chegada estimada: 19:30 + 7.1 h = 02:36 (do dia seguinte)
+7. Francisco Morato | 6 unid. | Chegada estimada: 02:36 + 7.1 h = 09:42 (do dia seguinte)
+8. Mairiporã | 7 unid. | Chegada estimada: 09:42 + 7.1 h = 16:48 (do dia seguinte)
+9. Itaquaquecetuba | 20 unid. | Chegada estimada: 16:48 + 7.1 h = 00:54 (do dia seguinte)
+10. Ferraz de Vasconcelos | 20 unid. | Chegada estimada: 00:54 + 7.1 h = 08:00 (do dia seguinte)
+11. Poá | 10 unid. | Chegada estimada: 08:00 + 7.1 h = 15:06 (do dia seguinte)
+12. Biritiba-Mirim | 16 unid. | Chegada estimada: 15:06 + 7.1 h = 22:12 (do dia seguinte)
+13. Salesópolis | 7 unid. | Chegada estimada: 22:12 + 7.1 h = 05:18 (do dia seguinte)
+14. Guararema | 10 unid. | Chegada estimada: 05:18 + 7.1 h = 12:24 (do dia seguinte)
+15. Santa Isabel | 14 unid. | Chegada estimada: 12:24 + 7.1 h = 19:30 (do dia seguinte)
+16. Arujá | 11 unid. | Chegada estimada: 19:30 + 7.1 h = 02:36 (do dia seguinte)
+
+**Instrução de retorno ao depósito:** Após a última entrega, retornar ao depósito em Barueri.
+
+---
+
+## 2. RELATÓRIO DE EFICIÊNCIA
+
+- **Distância total percorrida pela frota:** 677.0 km
+- **Tempo total estimado de operação por veículo:**
+  - Veículo 1: 6.4 h
+  - Veículo 2: 3.4 h
+  - Veículo 3: 7.1 h
+- **Taxa de utilização de capacidade por veículo:**
+  - Veículo 1: 136/150 = 0.91 (91%)
+  - Veículo 2: 145/150 = 0.97 (97%)
+  - Veículo 3: 180/500 = 0.36 (36%)
+- **Veículo mais eficiente:** Veículo 2 (97%)
+- **Veículo menos eficiente:** Veículo 3 (36%)
+- **Comparativo com a média esperada:** A média de utilização da capacidade da frota é de 74%, portanto, os veículos 1 e 2 estão acima da média, enquanto o veículo 3 está significativamente abaixo.
+
+---
+
+## 3. ALERTAS DE PRIORIDADE CRÍTICA
+
+- **Entregas críticas e veículos responsáveis:**
+  - ⚠ Santo André | Veículo 1
+  - ⚠ São Paulo | Veículo 1
+  - ⚠ Guarulhos | Veículo 1
+  - ⚠ Suzano | Veículo 1
+
+- **Confirmação de posição na rota:** Todas as entregas críticas estão nas primeiras posições da rota do Veículo 1.
+
+- **Estimativa de horário de chegada a cada entrega crítica (partindo às 08:00):**
+  - ⚠ Santo André: 14:24
+  - ⚠ São Paulo: 20:48
+  - ⚠ Guarulhos: 03:12 (do dia seguinte)
+  - ⚠ Suzano: 09:36 (do dia seguinte)
+
+- **Recomendações caso algum atraso seja previsto:** É crucial monitorar o trânsito e as condições climáticas. Caso ocorra um atraso, priorizar as entregas críticas na sequência de entrega e comunicar imediatamente à equipe de logística para ajustes nas rotas.
+
+---
+
+## 4. RESUMO EXECUTIVO
+
+A operação de distribuição realizada em 08/03/2026 envolveu a entrega de 361 unidades em
