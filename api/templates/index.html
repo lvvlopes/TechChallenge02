@@ -506,14 +506,22 @@ function initMap() {
 
 // ── Inicializa gráficos ───────────────────────────────────────────────────
 function initCharts() {
-  const opts = (label, color) => ({
+  const twoLine = (label1, color1, label2, color2) => ({
     type: 'line',
-    data: { labels: [], datasets: [{ label, data: [], borderColor: color,
-      backgroundColor: color + '22', borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.3 }] },
+    data: {
+      labels: [],
+      datasets: [
+        { label: label2, data: [], borderColor: color2, borderWidth: 2.0,
+          pointRadius: 0, fill: false, tension: 0.2, order: 1 },
+        { label: label1, data: [], borderColor: color1, borderWidth: 1.0,
+          backgroundColor: color1 + '18', pointRadius: 0, fill: true,
+          tension: 0.3, order: 2 }
+      ]
+    },
     options: {
       animation: false,
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#7c8399', font: { size: 10 } } } },
+      plugins: { legend: { labels: { color: '#7c8399', font: { size: 9 } } } },
       scales: {
         x: { display: false },
         y: { ticks: { color: '#7c8399', font: { size: 9 } }, grid: { color: '#2a2d3e' } }
@@ -521,20 +529,25 @@ function initCharts() {
     }
   });
 
-  chartFitness = new Chart(document.getElementById('chart-fitness'), opts('Fitness', '#4f8ef7'));
-  chartKm      = new Chart(document.getElementById('chart-km'),      opts('KM', '#3ecf8e'));
+  chartFitness = new Chart(document.getElementById('chart-fitness'),
+    twoLine('Geração atual', '#4f8ef7', 'Melhor global', '#e74c3c'));
+  chartKm = new Chart(document.getElementById('chart-km'),
+    twoLine('KM geração', '#3ecf8e', 'Melhor KM', '#e74c3c'));
 }
 
 // ── Atualiza gráficos ─────────────────────────────────────────────────────
-function updateCharts(fitnessHistory, kmHistory) {
+function updateCharts(fitnessHistory, kmHistory, bestGlobalHist, bestKmHistory) {
   const labels = fitnessHistory.map((_, i) => i + 1);
 
+  // dataset[0] = melhor global (vermelho, atrás), dataset[1] = geração atual (azul, frente)
   chartFitness.data.labels = labels;
-  chartFitness.data.datasets[0].data = fitnessHistory;
+  chartFitness.data.datasets[0].data = bestGlobalHist  || [];
+  chartFitness.data.datasets[1].data = fitnessHistory;
   chartFitness.update('none');
 
   chartKm.data.labels = labels;
-  chartKm.data.datasets[0].data = kmHistory;
+  chartKm.data.datasets[0].data = bestKmHistory || [];
+  chartKm.data.datasets[1].data = kmHistory;
   chartKm.update('none');
 }
 
@@ -687,11 +700,11 @@ async function pollStatus() {
     document.getElementById('progress-bar').style.width = data.progress + '%';
     document.getElementById('m-gen').textContent  = data.generation  ?? '—';
     document.getElementById('m-fit').textContent  = data.best_fitness ?? '—';
-    document.getElementById('m-km').textContent   = data.current_km ? data.current_km + ' km' : '—';
+    document.getElementById('m-km').textContent   = data.best_km ? data.best_km + ' km' : (data.current_km ? data.current_km + ' km' : '—');
     document.getElementById('m-stag').textContent = data.sem_melhoria ?? '—';
 
     if (data.fitness_history?.length) {
-      updateCharts(data.fitness_history, data.km_history);
+      updateCharts(data.fitness_history, data.km_history, data.best_global_hist, data.best_km_history);
     }
 
     log(`Gen ${data.generation} | Fit ${data.best_fitness} | ${data.current_km} km`);
@@ -723,7 +736,7 @@ async function fetchResultado() {
   renderRoutes(data.routes);
 
   // Gráficos finais
-  updateCharts(data.fitness_history, data.km_history);
+  updateCharts(data.fitness_history, data.km_history, data.best_global_hist, data.best_km_history);
 
   // Métricas finais
   document.getElementById('m-gen').textContent = data.generation;
@@ -755,9 +768,11 @@ async function iniciarOtimizacao() {
   // Reseta gráficos
   chartFitness.data.labels = [];
   chartFitness.data.datasets[0].data = [];
+  chartFitness.data.datasets[1].data = [];
   chartFitness.update('none');
   chartKm.data.labels = [];
   chartKm.data.datasets[0].data = [];
+  chartKm.data.datasets[1].data = [];
   chartKm.update('none');
 
   const payload = {

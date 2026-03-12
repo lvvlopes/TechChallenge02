@@ -170,16 +170,19 @@ async def resultado(job_id: str):
         raise HTTPException(status_code=202, detail=f"Job ainda em execução: {job['status']}")
 
     return {
-        "job_id":          job_id,
-        "status":          "done",
-        "generation":      job["generation"],
-        "best_fitness":    job["best_fitness"],
-        "total_km":        job["total_km"],
-        "routes":          job["routes"],
-        "depot":           job["depot"],
-        "fitness_history": job["fitness_history"],
-        "km_history":      job["km_history"],
-        "llm_report":      job["llm_report"],
+        "job_id":           job_id,
+        "status":           "done",
+        "generation":       job["generation"],
+        "best_fitness":     job["best_fitness"],
+        "total_km":         job["total_km"],
+        "best_km":          job.get("best_km", job["total_km"]),
+        "routes":           job["routes"],
+        "depot":            job["depot"],
+        "fitness_history":  job["fitness_history"],
+        "km_history":       job["km_history"],
+        "best_global_hist": job.get("best_global_hist", []),
+        "best_km_history":  job.get("best_km_history", []),
+        "llm_report":       job["llm_report"],
     }
 
 

@@ -24,6 +24,8 @@ ROUTE_COLORS_HEX = [
 
 def draw_plot(screen: pygame.Surface, x: list, y_fitness: list,
               y_km: list = None,
+              y_best: list = None,
+              y_best_km: list = None,
               routes: list = None,
               x_label: str = 'Generation',
               y_label: str = 'Fitness') -> None:
@@ -37,29 +39,47 @@ def draw_plot(screen: pygame.Surface, x: list, y_fitness: list,
     else:
         fig, ax1 = plt.subplots(1, 1, figsize=(4, 4), dpi=100)
 
-    ax1.plot(x, y_fitness, color='steelblue')
+    # Melhor global desenhado PRIMEIRO (atrás), geração atual por cima
+    if y_best:
+        ax1.plot(x, y_best, color='red', linewidth=1.5, label='Melhor global', zorder=1)
+    ax1.plot(x, y_fitness, color='steelblue', alpha=0.7, linewidth=1.0, label='Geração atual', zorder=2)
+    if y_best:
+        ax1.legend(fontsize=6, loc='upper right')
     ax1.set_ylabel(y_label, fontsize=8)
     ax1.tick_params(labelsize=7)
     if not y_km:
         ax1.set_xlabel(x_label, fontsize=8)
 
     if y_km:
-        ax2.plot(x, y_km, color='darkorange')
+        # Melhor KM desenhado PRIMEIRO (atrás), geração atual por cima
+        if y_best_km:
+            ax2.plot(x, y_best_km, color='red', linewidth=1.5, label='Melhor KM', zorder=1)
+        ax2.plot(x, y_km, color='darkorange', alpha=0.6, linewidth=1.0, label='KM geração', zorder=2)
+        if y_best_km:
+            best_km = y_best_km[-1]
+            ax2.annotate(
+                f'{best_km:.1f} km',
+                xy=(x[-1], best_km),
+                xytext=(-55, 8),
+                textcoords='offset points',
+                fontsize=8,
+                color='red',
+                fontweight='bold'
+            )
+        else:
+            current_km = y_km[-1]
+            ax2.annotate(
+                f'{current_km:.1f} km',
+                xy=(x[-1], current_km),
+                xytext=(-55, 8),
+                textcoords='offset points',
+                fontsize=8,
+                color='darkorange',
+                fontweight='bold'
+            )
         ax2.set_ylabel('Distância total (km)', fontsize=8)
         ax2.set_xlabel(x_label, fontsize=8)
         ax2.tick_params(labelsize=7)
-
-        # valor atual anotado no gráfico
-        current_km = y_km[-1]
-        ax2.annotate(
-            f'{current_km:.1f} km',
-            xy=(x[-1], current_km),
-            xytext=(-55, 8),
-            textcoords='offset points',
-            fontsize=8,
-            color='darkorange',
-            fontweight='bold'
-        )
 
         # legenda de veículos
         if routes:

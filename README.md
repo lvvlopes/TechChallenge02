@@ -210,6 +210,22 @@ colocando cidades críticas primeiro (`_sort_by_priority()`).
 | Elitismo | Top-5 | Os 5 melhores são preservados a cada geração |
 | Refinamento | 2-opt (5 iter.) | Aplicado ao melhor indivíduo de cada geração |
 
+### O que é o Fitness
+
+O fitness é um número entre 0 e 1 que representa a qualidade da solução — **quanto menor, melhor**.
+Não é a distância em KM diretamente, mas uma combinação ponderada de 4 componentes normalizados:
+
+| Componente | Peso | O que mede |
+|---|---|---|
+| Distância total | 0.55 | KM percorridos por todos os veículos |
+| Penalidade de prioridade | 0.15 | Cidades críticas visitadas tarde |
+| Balanceamento de carga | 0.05 | Variância de carga entre veículos |
+| Fragmentação de rotas | 0.25 | Número de rotas (evita muitas viagens curtas) |
+
+A normalização garante que nenhum componente domine por diferença de escala.
+Por exemplo, `Fitness: 0.6091` com `KM: 711` significa que o AG ainda não convergiu para
+a melhor solução — o `Melhor: 0.6043` registrado anteriormente é a solução preservada.
+
 ### Mecanismo anti-estagnação
 
 Quando o melhor fitness global não melhora por **160 gerações consecutivas**
@@ -220,6 +236,11 @@ forçando exploração de novas regiões do espaço de busca.
 
 O algoritmo encerra quando o **melhor fitness global** não melhora por
 **400 gerações consecutivas** (modo desktop) ou pelo valor configurado nos sliders (modo web).
+
+O critério de parada compara `best_global` com o valor da geração anterior (`previous_global`),
+garantindo que somente melhorias reais zeram o contador. O melhor cromossomo é preservado em
+`best_solution_ever` — independente dos restarts parciais, a melhor solução nunca é perdida
+e é exibida no mapa ao convergir.
 
 ---
 
@@ -265,8 +286,12 @@ O decoder **garante estruturalmente** que cidades críticas sejam sempre visitad
 A janela (1500×800px) é dividida em duas áreas:
 
 **Lado esquerdo — Painéis de monitoramento:**
-- Gráfico superior: evolução do **fitness normalizado** por geração
-- Gráfico inferior: evolução da **distância total em KM reais** (fórmula Haversine)
+- Gráfico superior: evolução do fitness com **duas linhas**:
+  - 🔵 Azul: fitness de cada geração (sobe e desce — mostra exploração do espaço de busca)
+  - 🔴 Vermelho: melhor fitness global acumulado (monotonicamente decrescente — mostra convergência)
+- Gráfico inferior: distância em KM com **duas linhas**:
+  - 🟠 Laranja: KM de cada geração (oscila conforme a exploração)
+  - 🔴 Vermelho: melhor KM já encontrado (valor anotado na linha — só diminui)
 
 **Lado direito — Mapa da RMSP:**
 - Tiles reais do OpenStreetMap (cacheados em `.map_cache/`)
@@ -284,6 +309,7 @@ A interface web roda em `http://localhost:8000` e oferece:
 - Sliders para configurar população, estagnação e taxa de mutação
 - Barra de progresso e métricas em tempo real (geração, fitness, KM, estagnação)
 - Gráficos de evolução do fitness e da distância atualizados ao vivo
+- Ao convergir, a janela permanece aberta para análise — **pressione ENTER no terminal para fechar**
 - Aba **Rotas**: painel detalhado com paradas, carga e distância por veículo
 - Aba **Log**: console ao vivo com o progresso geração a geração
 - Aba **Relatório LLM**: relatório operacional gerado ao convergir

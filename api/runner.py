@@ -149,11 +149,16 @@ def run_ag(
     fitness_values = [calculo_fitness(c, problem) for c in population]
     population, fitness_values = sort_population(population, fitness_values)
 
-    best_global   = fitness_values[0]
-    sem_melhoria  = 0
-    generation    = 0
-    fitness_history = []
-    km_history      = []
+    best_global        = fitness_values[0]
+    previous_global    = float('inf')
+    best_global_km     = float('inf')
+    best_solution_ever = population[0][:]
+    sem_melhoria       = 0
+    generation         = 0
+    fitness_history    = []   # fitness por geração
+    best_global_hist   = []   # melhor global acumulado
+    km_history         = []   # km por geração
+    best_km_history    = []   # melhor km acumulado
 
     job["status"]   = "running"
     job["progress"] = 0
@@ -173,28 +178,44 @@ def run_ag(
         population[0] = two_opt(population[0], problem)
         fitness_values[0] = calculo_fitness(population[0], problem)
 
-        # Rastreia melhor global
-        if fitness_values[0] < best_global:
-            best_global  = fitness_values[0]
-            sem_melhoria = 0
-        else:
-            sem_melhoria += 1
-
-        # Decoda rotas e calcula KM
+        # Decoda rotas e calcula KM da geração atual
         decoder = VRPDecoder(problem)
         routes  = decoder.decode(population[0])
         km      = calc_total_km(routes, depot_name, city_geo)
 
+        # Salva previous_global ANTES de atualizar — critério de parada correto
+        previous_global = best_global
+
+        # Rastreia melhor global — preserva melhor cromossomo
+        if fitness_values[0] < best_global:
+            best_global        = fitness_values[0]
+            best_global_km     = km
+            best_solution_ever = population[0][:]
+
+        # Critério de parada: melhoria real no best_global
+        if best_global < previous_global - 1e-6:
+            sem_melhoria = 0
+        else:
+            sem_melhoria += 1
+
         fitness_history.append(round(fitness_values[0], 4))
+        best_global_hist.append(round(best_global, 4))
         km_history.append(round(km, 1))
+        best_km_history.append(round(best_global_km if best_global_km != float('inf') else km, 1))
 
         # Progresso (0–100%)
         progress = min(int(sem_melhoria / STAGNATION_STOP * 100), 99)
-        job["progress"]    = progress
-        job["generation"]  = generation
-        job["best_fitness"] = round(best_global, 4)
-        job["current_km"]   = round(km, 1)
-        job["sem_melhoria"] = sem_melhoria
+        job["progress"]         = progress
+        job["generation"]       = generation
+        job["best_fitness"]     = round(best_global, 4)
+        job["current_fitness"]  = round(fitness_values[0], 4)
+        job["current_km"]       = round(km, 1)
+        job["best_km"]          = round(best_global_km if best_global_km != float('inf') else km, 1)
+        job["sem_melhoria"]     = sem_melhoria
+        job["fitness_history"]  = fitness_history
+        job["best_global_hist"] = best_global_hist
+        job["km_history"]       = km_history
+        job["best_km_history"]  = best_km_history
 
         if on_progress:
             on_progress(job)

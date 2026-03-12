@@ -1,0 +1,9 @@
+Rodar local
+uvicorn api.main:app --reload --port 8000
+
+Publicar remoto
+docker build -t vrprmspcr.azurecr.io/vrp-rmsp:latest .
+
+Gerar teste
+python generate_test_report.py
+

@@ -210,9 +210,14 @@ population = (
 # Flag para evitar gerar relatório duas vezes seguidas sem nova convergência
 _llm_report_generated = False
 
-best_fitness_values = []   # histórico de fitness para o gráfico
+best_fitness_values = []   # histórico de fitness por geração
+best_global_values  = []   # histórico do melhor global acumulado (fitness)
+best_global_km_hist = []   # histórico do melhor KM acumulado
 best_km_values      = []   # histórico de KM reais para o gráfico
 best_global         = float('inf')  # melhor fitness já encontrado (global)
+previous_global     = float('inf')  # best_global da geração anterior
+best_global_km      = float('inf')  # KM correspondente ao melhor fitness
+best_solution_ever  = []            # cromossomo do melhor fitness global
 sem_melhoria        = 0             # gerações sem melhorar o melhor global
 WHITE               = (255, 255, 255)
 
@@ -255,17 +260,31 @@ while running:
 
     # Refinamento local 2-opt no melhor indivíduo da geração
     population[0] = two_opt(population[0], problem)
+    population_fitness[0] = calculo_fitness(population[0], problem)
 
     best_solution = population[0]
-    best_fitness  = calculo_fitness(best_solution, problem)
+    best_fitness  = population_fitness[0]
 
-    # Decodifica o melhor cromossomo em rotas reais para visualização
+    # Decodifica o melhor da geração atual para visualização
     decoder = VRPDecoder(problem)
     routes  = decoder.decode(best_solution)
+    current_km = calc_route_km(routes, depot_name, city_geo)
 
-    # Registra histórico para os gráficos
+    # Salva o melhor anterior ANTES de atualizar — usado no critério de parada
+    previous_global = best_global
+
+    # Atualiza melhor global — guarda o cromossomo para não perder entre restarts
+    if best_fitness < best_global:
+        best_global        = best_fitness
+        best_global_km     = current_km
+        best_solution_ever = best_solution[:]
+
+    # Gráficos mostram o fitness/KM de CADA GERAÇÃO — permite ver a convergência
+    # O melhor global é rastreado separadamente (best_global) para o critério de parada
     best_fitness_values.append(best_fitness)
-    best_km_values.append(calc_route_km(routes, depot_name, city_geo))
+    best_global_values.append(best_global)
+    best_km_values.append(current_km)
+    best_global_km_hist.append(best_global_km if best_global_km != float('inf') else current_km)
 
     # ── Visualização ──────────────────────────────────────────────────────────
     # Painel esquerdo: gráfico de fitness + gráfico de KM com legenda de veículos
@@ -274,6 +293,8 @@ while running:
         list(range(len(best_fitness_values))),
         best_fitness_values,
         y_km=best_km_values,
+        y_best=best_global_values,
+        y_best_km=best_global_km_hist,
         routes=routes,
         y_label="Fitness (norm.)",
     )
@@ -316,14 +337,14 @@ while running:
     draw_label(screen, f"⬤ {problem.depot.name}",
                problem.depot.x + 14, problem.depot.y - 9, (0, 120, 0))
 
-    print(f"Gen {generation:4d} | Fitness: {best_fitness:.4f} | KM: {best_km_values[-1]:.1f} | Melhor: {best_global:.4f} ({sem_melhoria} sem melhoria)")
+    print(f"Gen {generation:4d} | Fitness: {best_fitness:.4f} | KM: {current_km:.1f} | Melhor: {best_global:.4f} ({sem_melhoria} sem melhoria)")
 
     # ── Critério de parada: sem melhoria no melhor global ─────────────────────
-    if best_fitness < best_global - 1e-6:
-        best_global   = best_fitness
-        sem_melhoria  = 0
+    # Compara best_global atual com o da geração anterior para detectar melhoria real
+    if best_global < previous_global - 1e-6:
+        sem_melhoria = 0   # melhorou de verdade
     else:
-        sem_melhoria += 1
+        sem_melhoria += 1  # sem melhoria
 
     if sem_melhoria >= STAGNATION_STOP:
         print(f"Convergiu após {generation} gerações — melhor fitness: {best_global:.4f}")
